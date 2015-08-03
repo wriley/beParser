@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using System.Collections.Concurrent;
 
 namespace beParser
 {
@@ -16,7 +17,9 @@ namespace beParser
         List<String> filesToWatch = new List<String>();
         List<Worker> workerObjects = new List<Worker>();
         List<Thread> workerThreads = new List<Thread>();
-        String basePath = "testlogs";
+        String basePath = "c:\\arma2oa\\dayz_2\\BattlEye";
+        BlockingCollection<string> debugLogQueue = new BlockingCollection<string>();
+        BlockingCollection<string> outputLogQueue = new BlockingCollection<string>();
 
         public frmMain()
         {
@@ -25,19 +28,37 @@ namespace beParser
 
         private void fmrMain_Load(object sender, EventArgs e)
         {
+            filesToWatch.Add("server.log");
+            filesToWatch.Add("addweaponcargo.log");
+            filesToWatch.Add("addmagazinecargo.log");
+            filesToWatch.Add("remoteexec.log");
+            filesToWatch.Add("setpos.log");
+            filesToWatch.Add("setvariable.log");
+            filesToWatch.Add("deletevehicle.log");
+            filesToWatch.Add("createvehicle.log");
+            filesToWatch.Add("publicvariable.log");
+            filesToWatch.Add("attachto.log");
+            filesToWatch.Add("waypointstatements.log");
+            filesToWatch.Add("arma2oaserver.RPT");
             filesToWatch.Add("scripts.log");
-            //filesToWatch.Add("arma2oaserver.RPT");
-            //filesToWatch.Add("attachto.log");
-            //filesToWatch.Add("publicvariable.log");
-            //filesToWatch.Add("setvariable.log");
-
-            logDebug("LOADED");
-
-            Run();
+            
+            this.Run();
         }
 
         private void Run()
         {
+            var timerDebugLog = new System.Timers.Timer();
+            timerDebugLog.AutoReset = true;
+            timerDebugLog.Interval = 50;
+            timerDebugLog.Elapsed += TimerDebugLog_Elapsed;
+            timerDebugLog.Start();
+
+            var timerOutputLog = new System.Timers.Timer();
+            timerOutputLog.AutoReset = true;
+            timerOutputLog.Interval = 50;
+            timerOutputLog.Elapsed += TimerOutputLog_Elapsed;
+            timerOutputLog.Start();
+
             foreach(String file in filesToWatch)
             {
                 Worker w = new Worker(this, basePath + "\\" + file);
@@ -46,6 +67,58 @@ namespace beParser
                 workerThreads.Add(t);
                 t.IsBackground = true;
                 t.Start();
+            }
+        }
+
+        private void TimerDebugLog_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            foreach (var s in debugLogQueue.GetConsumingEnumerable())
+            {
+                updateDebugText(s);
+            }
+        }
+
+        private void TimerOutputLog_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            foreach (var s in outputLogQueue.GetConsumingEnumerable())
+            {
+                updateOutputText(s);
+            }
+        }
+
+        delegate void updateDebugTextCallback(string s);
+
+        private void updateDebugText(string s)
+        {
+            if (this.rtbDebug.InvokeRequired)
+            {
+                updateDebugTextCallback d = new updateDebugTextCallback(updateDebugText);
+                this.Invoke(d, new object[] { s });
+            }
+            else
+            {
+                rtbDebug.Text += s;
+                rtbDebug.Text += "\n";
+                rtbDebug.SelectionStart = rtbDebug.Text.Length;
+                rtbDebug.ScrollToCaret();
+            }
+        }
+
+        delegate void updateOutputTextCallback(string s);
+
+        private void updateOutputText(string s)
+        {
+            if (this.rtbOutput.InvokeRequired)
+            {
+                updateOutputTextCallback d = new updateOutputTextCallback(updateOutputText);
+                this.Invoke(d, new object[] { s });
+            }
+            else
+            {
+                rtbOutput.Text += s;
+                rtbOutput.Text += "\n";
+                rtbOutput.SelectionStart = rtbOutput.Text.Length;
+                rtbOutput.ScrollToCaret();
             }
         }
 
@@ -95,21 +168,14 @@ namespace beParser
 
         }
 
-        delegate void logDebugDelegate(String s);
-
         public void logDebug(String s)
         {
-            if (InvokeRequired)
-            {
-                logDebugDelegate del = logDebug;
-                Invoke(del, new object[]{s});
-            }
-            else
-            {
-                rtbOutput.Text += addDateString(s);
-                rtbOutput.SelectionStart = rtbOutput.Text.Length;
-                rtbOutput.ScrollToCaret();
-            }
+            debugLogQueue.Add(addDateString(s));
+        }
+
+        public void logOutput(String s)
+        {
+            outputLogQueue.Add(addDateString(s));
         }
 
         private String getDateString()
@@ -119,7 +185,7 @@ namespace beParser
 
         private String addDateString(String s)
         {
-            return getDateString() + " " + s + "\n";
+            return getDateString() + " " + s;
         }
 
     }
@@ -140,7 +206,7 @@ namespace beParser
 
         public void DoWork()
         {
-            threadLogDebug("starting");
+            threadLogDebug("starting for file " + _fileName);
 
             while(!_shouldStop)
             {
@@ -164,7 +230,7 @@ namespace beParser
                         }
                         if((line = sr.ReadLine()) != null)
                         {
-                            threadLogDebug(line);
+                            threadLogOutput(line);
                         }
                         lastSize = currentSize;
                     }
@@ -172,7 +238,7 @@ namespace beParser
                 }
                 catch (Exception)
                 {
-                    threadLogDebug("Error opening file, sleeping for a bit");
+                    threadLogDebug("No file " + _fileName + ", sleeping for a bit");
                     Thread.Sleep(2000);
                 }
             }
@@ -197,7 +263,12 @@ namespace beParser
 
         private void threadLogDebug(String s)
         {
-            _parentForm.logDebug(_fileName + ": " + s);
+            _parentForm.logDebug("Thread " + System.Threading.Thread.CurrentThread.ManagedThreadId + " " + s);
+        }
+
+        private void threadLogOutput(String s)
+        {
+            _parentForm.logOutput(_fileName + ": " + s);
         }
 
         public void RequestStop()
