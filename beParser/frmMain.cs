@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 
 namespace beParser
 {
@@ -18,7 +19,7 @@ namespace beParser
         List<Worker> workerObjects = new List<Worker>();
         List<Thread> workerThreads = new List<Thread>();
         string basePath = "C:\\arma2oa\\dayz_2\\BattlEye";
-        //string basePath = "testlogs";
+        //string basePath = "testlogs\\BattlEye";
         ConcurrentQueue<string> debugLogQueue = new ConcurrentQueue<string>();
         ConcurrentQueue<string> outputLogQueue = new ConcurrentQueue<string>();
 
@@ -29,6 +30,8 @@ namespace beParser
 
         private void fmrMain_Load(object sender, EventArgs e)
         {
+            // files to monitor
+            // TODO: move this to config file
             filesToWatch.Add("..\\server_console.log");
             filesToWatch.Add("addweaponcargo.log");
             filesToWatch.Add("addmagazinecargo.log");
@@ -42,24 +45,21 @@ namespace beParser
             filesToWatch.Add("waypointstatements.log");
             filesToWatch.Add("..\\arma2oaserver.RPT");
             filesToWatch.Add("scripts.log");
-            
-            this.Run();
+
+            Run();
         }
 
         private void Run()
         {
-            var timerDebugLog = new System.Timers.Timer();
-            timerDebugLog.AutoReset = true;
-            timerDebugLog.Interval = 1000;
-            timerDebugLog.Elapsed += TimerDebugLog_Elapsed;
-            timerDebugLog.Start();
+            Thread tDebug = new Thread(doDebugLog);
+            tDebug.IsBackground = true;
+            tDebug.Start();
 
-            var timerOutputLog = new System.Timers.Timer();
-            timerOutputLog.AutoReset = true;
-            timerOutputLog.Interval = 1000;
-            timerOutputLog.Elapsed += TimerOutputLog_Elapsed;
-            timerOutputLog.Start();
+            Thread tOutput = new Thread(doOutputLog);
+            tOutput.IsBackground = true;
+            tOutput.Start();
 
+            // create and start worker threads
             foreach(String file in filesToWatch)
             {
                 Worker w = new Worker(this, basePath + "\\" + file);
@@ -71,32 +71,37 @@ namespace beParser
             }
         }
 
-        private void TimerDebugLog_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        private void doDebugLog()
         {
             string s;
-            while(debugLogQueue.TryDequeue(out s))
+            for (;;)
             {
-                updateDebugText(s);
+                while (debugLogQueue.TryDequeue(out s))
+                {
+                    updateDebugText(s);
+                }
             }
         }
 
-        private void TimerOutputLog_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        private void doOutputLog()
         {
             string s;
-            while(outputLogQueue.TryDequeue(out s))
+            for (;;)
             {
-                updateOutputText(s);
+                while (outputLogQueue.TryDequeue(out s))
+                {
+                    updateOutputText(s);
+                }
             }
         }
 
         delegate void updateDebugTextCallback(string s);
-
         private void updateDebugText(string s)
         {
             if (this.rtbDebug.InvokeRequired)
             {
                 updateDebugTextCallback d = new updateDebugTextCallback(updateDebugText);
-                this.Invoke(d, new object[] { s });
+                Invoke(d, new object[] { s });
             }
             else
             {
@@ -108,13 +113,12 @@ namespace beParser
         }
 
         delegate void updateOutputTextCallback(string s);
-
         private void updateOutputText(string s)
         {
             if (this.rtbOutput.InvokeRequired)
             {
                 updateOutputTextCallback d = new updateOutputTextCallback(updateOutputText);
-                this.Invoke(d, new object[] { s });
+                Invoke(d, new object[] { s });
             }
             else
             {
@@ -127,6 +131,7 @@ namespace beParser
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            // Check if any worker threads are running
             int threadsRunning = 0;
             foreach(Thread t in workerThreads)
             {
@@ -135,6 +140,8 @@ namespace beParser
                     threadsRunning++;
                 }
             }
+
+            // if worker threads are running tell them to stop and wait
             if (threadsRunning > 0)
             {
                 e.Cancel = true;
@@ -178,7 +185,7 @@ namespace beParser
 
         public void logOutput(String s)
         {
-            outputLogQueue.Enqueue(addDateString(s));
+            outputLogQueue.Enqueue(s);
         }
 
         private String getDateString()
@@ -193,8 +200,9 @@ namespace beParser
 
         private void btnRCON_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("not yet implemented");
+            MessageBox.Show("Not yet implemented");
         }
+
     }
 
     public class Worker
@@ -203,6 +211,11 @@ namespace beParser
         private frmMain _parentForm;
         private String _filePath;
         private String _fileName;
+        private FileStream _fs;
+        private StreamReader _sr;
+        private Int64 _linesRead = 0;
+        private Regex _regex = new Regex(@"Verified GUID \(([0-9a-z]+)\) of player #[0-9]+ (.*)");
+        private Match match;
 
         public Worker(frmMain parentForm, String filePath)
         {
@@ -219,10 +232,10 @@ namespace beParser
             {
                 try
                 {
-                    FileStream fs = File.Open(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                    StreamReader sr = new StreamReader(fs);
+                    _fs = File.Open(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    _sr = new StreamReader(_fs);
                     Int64 lastSize = GetFileSize();
-                    sr.BaseStream.Seek(lastSize, SeekOrigin.Begin);
+                    //sr.BaseStream.Seek(lastSize, SeekOrigin.Begin);
                     string line;
                     Int64 currentSize;
                     while (!_shouldStop)
@@ -231,24 +244,40 @@ namespace beParser
                         if (currentSize < lastSize)
                         {
                             threadLogDebug("File size reduced, starting at beginning of file");
-                            sr.DiscardBufferedData();
-                            sr.BaseStream.Seek(0, SeekOrigin.Begin);
-                            sr.BaseStream.Position = 0;
+                            _sr.DiscardBufferedData();
+                            _sr.BaseStream.Seek(0, SeekOrigin.Begin);
+                            _sr.BaseStream.Position = 0;
                         }
-                        if((line = sr.ReadLine()) != null)
+                        if((line = _sr.ReadLine()) != null)
                         {
-                            threadLogOutput(line);
+                            _linesRead++;
+                            if((_linesRead % 100) == 0)
+                            {
+                                threadLogDebug(_fileName + " " + _linesRead + " lines read");
+                            }
+                            if(_fileName == "server_console.log")
+                            {
+                                match = _regex.Match(line);
+                                if(match.Success)
+                                {
+                                    threadLogOutput("GUID " + match.Groups[1].Value + " " + match.Groups[2].Value);
+                                }
+                            }
+                            //threadLogOutput(line);
                         }
                         lastSize = currentSize;
-                        Thread.Sleep(5);
+                        //Thread.Sleep(1);
                     }
-                    if (fs != null) { fs.Close(); }
                 }
                 catch (Exception ex)
                 {
-                    threadLogDebug("Error opening file: " + ex.Message);
-                    _shouldStop = true;
-                    //TODO: have main form re-check?
+                    threadLogDebug("Error opening file: " + ex.Message + " will retry in 5 seconds");
+                    SpinAndWait(5000);
+                }
+                finally
+                {
+                    if (_sr != null) { _sr.Close(); }
+                    if (_fs != null) { _fs.Close(); }
                 }
             }
             threadLogDebug("exiting");
@@ -266,7 +295,7 @@ namespace beParser
             }
             finally
             {
-                fs.Close();
+                if (fs != null) { fs.Close(); }
             }
         }
 
@@ -283,6 +312,17 @@ namespace beParser
         public void RequestStop()
         {
             _shouldStop = true;
+        }
+
+        private void SpinAndWait(int ms)
+        {
+            for (int i = 0; i < ms; i+= 10)
+            {
+                while (!_shouldStop)
+                {
+                    Thread.Sleep(10);
+                }
+            }
         }
     }
 }
