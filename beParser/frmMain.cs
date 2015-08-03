@@ -16,12 +16,15 @@ namespace beParser
     public partial class frmMain : Form
     {
         List<String> filesToWatch = new List<String>();
-        List<Worker> workerObjects = new List<Worker>();
+        List<Producer> producerObjects = new List<Producer>();
+        List<Consumer> consumerObjects = new List<Consumer>();
         List<Thread> workerThreads = new List<Thread>();
         string basePath = "C:\\arma2oa\\dayz_2\\BattlEye";
         //string basePath = "testlogs\\BattlEye";
         ConcurrentQueue<string> debugLogQueue = new ConcurrentQueue<string>();
         ConcurrentQueue<string> outputLogQueue = new ConcurrentQueue<string>();
+        Dictionary<string, ConcurrentQueue<string>> lineQueues = new Dictionary<string, ConcurrentQueue<string>>();
+        Dictionary<string, Regex[]> fileRegexes = new Dictionary<string, Regex[]>();
 
         public frmMain()
         {
@@ -46,11 +49,22 @@ namespace beParser
             filesToWatch.Add("..\\arma2oaserver.RPT");
             filesToWatch.Add("scripts.log");
 
+            // regexes
+            // TODO: move this to config file
+            // 12:54:01 BattlEye Server: Player #1 ZBuffet (174.26.147.224:23204) connected
+            // 12:54:03 BattlEye Server: Verified GUID (0f09332d84ea4d1cd6bcd7332ae81d24) of player #1 ZBuffet
+
+            Regex[] server_console = new Regex[2];
+            server_console[0] = new Regex(@"BattlEye Server: Player #[0-9]+ (.*) \(([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}):[0-9]+\) connected");
+            server_console[1] = new Regex(@"BattlEye Server: Verified GUID \(([0-9a-z]+)\) of player #[0-9]+ (.*)");
+            fileRegexes.Add("server_console.log", server_console);
+
             Run();
         }
 
         private void Run()
         {
+            // create and start UI threads
             Thread tDebug = new Thread(doDebugLog);
             tDebug.IsBackground = true;
             tDebug.Start();
@@ -59,12 +73,31 @@ namespace beParser
             tOutput.IsBackground = true;
             tOutput.Start();
 
-            // create and start worker threads
-            foreach(String file in filesToWatch)
+            Thread tQueues = new Thread(viewQueues);
+            tQueues.IsBackground = true;
+            tQueues.Start();
+
+            // create and start producer threads
+            foreach (String file in filesToWatch)
             {
-                Worker w = new Worker(this, basePath + "\\" + file);
-                workerObjects.Add(w);
+                string fileName = Path.GetFileName(file);
+                ConcurrentQueue<string> lineQueue = new ConcurrentQueue<string>();
+                lineQueues.Add(fileName, lineQueue);
+                Producer w = new Producer(this, basePath + "\\" + file, ref lineQueue);
+                producerObjects.Add(w);
                 Thread t = new Thread(w.DoWork);
+                workerThreads.Add(t);
+                t.IsBackground = true;
+                t.Start();
+            }
+
+            // create and start consumer threads
+            foreach (var lineQueue in lineQueues)
+            {
+                ConcurrentQueue<string> lq = lineQueues[lineQueue.Key];
+                Consumer c = new Consumer(this, lineQueue.Key, ref lq, fileRegexes[lineQueue.Key]);
+                consumerObjects.Add(c);
+                Thread t = new Thread(c.DoWork);
                 workerThreads.Add(t);
                 t.IsBackground = true;
                 t.Start();
@@ -92,6 +125,22 @@ namespace beParser
                 {
                     updateOutputText(s);
                 }
+            }
+        }
+
+        private void viewQueues()
+        {
+            for (;;)
+            {
+                var keys = new List<string>(lineQueues.Keys);
+                foreach (string key in keys)
+                {
+                    if (!lineQueues[key].IsEmpty)
+                    {
+                        logDebug("Queue " + key + " has " + lineQueues[key].Count + " entries");
+                    }
+                }
+                Thread.Sleep(2000);
             }
         }
 
@@ -133,9 +182,9 @@ namespace beParser
         {
             // Check if any worker threads are running
             int threadsRunning = 0;
-            foreach(Thread t in workerThreads)
+            foreach (Thread t in workerThreads)
             {
-                if(!t.Join(0))
+                if (!t.Join(0))
                 {
                     threadsRunning++;
                 }
@@ -145,9 +194,13 @@ namespace beParser
             if (threadsRunning > 0)
             {
                 e.Cancel = true;
-                foreach (Worker w in workerObjects)
+                foreach (Producer w in producerObjects)
                 {
                     w.RequestStop();
+                }
+                foreach (Consumer c in consumerObjects)
+                {
+                    c.RequestStop();
                 }
                 var timer = new System.Timers.Timer();
                 timer.AutoReset = false;
@@ -164,7 +217,7 @@ namespace beParser
                                 threadsRunning++;
                             }
                         }
-                        if(threadsRunning == 0)
+                        if (threadsRunning == 0)
                         {
                             Close();
                         }
@@ -205,28 +258,53 @@ namespace beParser
 
     }
 
-    public class Worker
+    public class GenericWorkerThread
     {
-        private volatile bool _shouldStop;
-        private frmMain _parentForm;
+        public volatile bool _shouldStop;
+        public frmMain _parentForm;
+
+        public void threadLogDebug(String s)
+        {
+            _parentForm.logDebug("Thread " + System.Threading.Thread.CurrentThread.ManagedThreadId + " " + s);
+        }
+
+        public void RequestStop()
+        {
+            _shouldStop = true;
+        }
+
+        public void SpinAndWait(int ms)
+        {
+            for (int i = 0; i < ms; i += 10)
+            {
+                while (!_shouldStop)
+                {
+                    Thread.Sleep(10);
+                }
+            }
+        }
+    }
+
+    public class Producer : GenericWorkerThread
+    {
         private String _filePath;
         private String _fileName;
         private FileStream _fs;
         private StreamReader _sr;
         private Int64 _linesRead = 0;
-        private Regex _regex = new Regex(@"Verified GUID \(([0-9a-z]+)\) of player #[0-9]+ (.*)");
-        private Match match;
+        private ConcurrentQueue<string> _lineQueue;
 
-        public Worker(frmMain parentForm, String filePath)
+        public Producer(frmMain parentForm, String filePath, ref ConcurrentQueue<string> lineQueue)
         {
             this._parentForm = parentForm;
             this._filePath = filePath;
             this._fileName = Path.GetFileName(_filePath);
+            this._lineQueue = lineQueue;
         }
 
         public void DoWork()
         {
-            threadLogDebug("starting for file " + _fileName);
+            threadLogDebug("Producer starting for file " + _fileName);
 
             while (!_shouldStop)
             {
@@ -248,21 +326,14 @@ namespace beParser
                             _sr.BaseStream.Seek(0, SeekOrigin.Begin);
                             _sr.BaseStream.Position = 0;
                         }
-                        if((line = _sr.ReadLine()) != null)
+                        if ((line = _sr.ReadLine()) != null)
                         {
                             _linesRead++;
-                            if((_linesRead % 100) == 0)
+                            if ((_linesRead % 100) == 0)
                             {
                                 threadLogDebug(_fileName + " " + _linesRead + " lines read");
                             }
-                            if(_fileName == "server_console.log")
-                            {
-                                match = _regex.Match(line);
-                                if(match.Success)
-                                {
-                                    threadLogOutput("GUID " + match.Groups[1].Value + " " + match.Groups[2].Value);
-                                }
-                            }
+                            _lineQueue.Enqueue(line);
                             //threadLogOutput(line);
                         }
                         lastSize = currentSize;
@@ -280,10 +351,10 @@ namespace beParser
                     if (_fs != null) { _fs.Close(); }
                 }
             }
-            threadLogDebug("exiting");
+            threadLogDebug("Producer exiting");
         }
 
-        private Int64 GetFileSize()
+        public Int64 GetFileSize()
         {
             FileStream fs = null;
             Int64 length;
@@ -299,30 +370,55 @@ namespace beParser
             }
         }
 
-        private void threadLogDebug(String s)
+    }
+
+    public class Consumer : GenericWorkerThread
+    {
+        private ConcurrentQueue<string> _lineQueue;
+        private string _fileName;
+        private Regex[] _regexes;
+        private Match match;
+
+        public Consumer(frmMain parentForm, string fileName, ref ConcurrentQueue<string> lineQueue, Regex[] regexes)
         {
-            _parentForm.logDebug("Thread " + System.Threading.Thread.CurrentThread.ManagedThreadId + " " + s);
+            this._parentForm = parentForm;
+            this._fileName = fileName;
+            this._lineQueue = lineQueue;
+            this._regexes = regexes;
         }
 
-        private void threadLogOutput(String s)
+        public void DoWork()
         {
-            _parentForm.logOutput(_fileName + ": " + s);
-        }
+            threadLogDebug("Consumer starting for file " + _fileName);
+            string line;
 
-        public void RequestStop()
-        {
-            _shouldStop = true;
-        }
-
-        private void SpinAndWait(int ms)
-        {
-            for (int i = 0; i < ms; i+= 10)
+            while (!_shouldStop)
             {
-                while (!_shouldStop)
+                while (_lineQueue.TryDequeue(out line))
                 {
-                    Thread.Sleep(10);
+                    foreach (var regex in _regexes)
+                    {
+                        match = regex.Match(line);
+                        if (match.Success)
+                        {
+                            StringBuilder sb = new StringBuilder();
+                            sb.Append("MATCH:");
+                            for (int i = 1; i < match.Groups.Count; i++)
+                            {
+                                sb.Append(" " + match.Groups[i].Value);
+                            }
+                            threadLogOutput(sb.ToString());
+                        }
+                    }
                 }
             }
+
+            threadLogDebug("Consumer exiting");
+        }
+
+        public void threadLogOutput(String s)
+        {
+            _parentForm.logOutput(s);
         }
     }
 }
