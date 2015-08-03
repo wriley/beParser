@@ -10,6 +10,7 @@ using System.Threading;
 using System.Windows.Forms;
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using System.Reflection;
 
 namespace beParser
 {
@@ -83,7 +84,7 @@ namespace beParser
                 string fileName = Path.GetFileName(file);
                 ConcurrentQueue<string> lineQueue = new ConcurrentQueue<string>();
                 lineQueues.Add(fileName, lineQueue);
-                Producer w = new Producer(this, basePath + "\\" + file, ref lineQueue);
+                Producer w = new Producer(this, basePath + "\\" + file);
                 producerObjects.Add(w);
                 Thread t = new Thread(w.DoWork);
                 workerThreads.Add(t);
@@ -95,7 +96,7 @@ namespace beParser
             foreach (var lineQueue in lineQueues)
             {
                 ConcurrentQueue<string> lq = lineQueues[lineQueue.Key];
-                Consumer c = new Consumer(this, lineQueue.Key, ref lq, fileRegexes[lineQueue.Key]);
+                Consumer c = new Consumer(this, lineQueue.Key);
                 consumerObjects.Add(c);
                 Thread t = new Thread(c.DoWork);
                 workerThreads.Add(t);
@@ -109,9 +110,13 @@ namespace beParser
             string s;
             for (;;)
             {
-                while (debugLogQueue.TryDequeue(out s))
+                if (debugLogQueue.TryDequeue(out s))
                 {
                     updateDebugText(s);
+                }
+                else
+                {
+                    Thread.Sleep(100);
                 }
             }
         }
@@ -121,9 +126,13 @@ namespace beParser
             string s;
             for (;;)
             {
-                while (outputLogQueue.TryDequeue(out s))
+                if (outputLogQueue.TryDequeue(out s))
                 {
                     updateOutputText(s);
+                }
+                else
+                {
+                    Thread.Sleep(100);
                 }
             }
         }
@@ -256,6 +265,48 @@ namespace beParser
             MessageBox.Show("Not yet implemented");
         }
 
+        public bool getLineQueueLine(string fileName, out string line)
+        {
+            bool res = false;
+            try
+            {
+                res = lineQueues[fileName].TryDequeue(out line);
+                return res;
+            }
+            catch (Exception ex)
+            {
+                logDebug(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+            }
+            line = "";
+            return false;
+        }
+
+        public void addLineQueueLine(string fileName, string s)
+        {
+            try
+            {
+                lineQueues[fileName].Enqueue(s);
+            }
+            catch (Exception ex)
+            {
+                logDebug(MethodBase.GetCurrentMethod().Name + "() " + ex.Message);
+            }
+        }
+
+        public Regex[] getFileRegexArray(string fileName)
+        {
+            try
+            {
+                Regex[] regexes = fileRegexes[fileName];
+                return regexes;
+            }
+            catch (Exception ex)
+            {
+                logDebug(MethodBase.GetCurrentMethod().Name + "() " + ex.Message);
+                return null;
+            }
+        }
+
     }
 
     public class GenericWorkerThread
@@ -275,12 +326,19 @@ namespace beParser
 
         public void SpinAndWait(int ms)
         {
-            for (int i = 0; i < ms; i += 10)
+            if (ms >= 10)
             {
-                while (!_shouldStop)
+                for (int i = 0; i < ms; i += 10)
                 {
-                    Thread.Sleep(10);
+                    while (!_shouldStop)
+                    {
+                        Thread.Sleep(10);
+                    }
                 }
+            }
+            else
+            {
+                Thread.Sleep(1);
             }
         }
     }
@@ -292,14 +350,12 @@ namespace beParser
         private FileStream _fs;
         private StreamReader _sr;
         private Int64 _linesRead = 0;
-        private ConcurrentQueue<string> _lineQueue;
 
-        public Producer(frmMain parentForm, String filePath, ref ConcurrentQueue<string> lineQueue)
+        public Producer(frmMain parentForm, String filePath)
         {
             this._parentForm = parentForm;
             this._filePath = filePath;
             this._fileName = Path.GetFileName(_filePath);
-            this._lineQueue = lineQueue;
         }
 
         public void DoWork()
@@ -333,11 +389,14 @@ namespace beParser
                             {
                                 threadLogDebug(_fileName + " " + _linesRead + " lines read");
                             }
-                            _lineQueue.Enqueue(line);
+                            _parentForm.addLineQueueLine(_fileName, line);
                             //threadLogOutput(line);
                         }
+                        else
+                        {
+                            SpinAndWait(1000);
+                        }
                         lastSize = currentSize;
-                        //Thread.Sleep(1);
                     }
                 }
                 catch (Exception ex)
@@ -374,27 +433,27 @@ namespace beParser
 
     public class Consumer : GenericWorkerThread
     {
-        private ConcurrentQueue<string> _lineQueue;
         private string _fileName;
         private Regex[] _regexes;
         private Match match;
 
-        public Consumer(frmMain parentForm, string fileName, ref ConcurrentQueue<string> lineQueue, Regex[] regexes)
+        public Consumer(frmMain parentForm, string fileName)
         {
             this._parentForm = parentForm;
             this._fileName = fileName;
-            this._lineQueue = lineQueue;
-            this._regexes = regexes;
+            this._regexes = _parentForm.getFileRegexArray(_fileName);
         }
 
         public void DoWork()
         {
             threadLogDebug("Consumer starting for file " + _fileName);
             string line;
+            bool res;
 
             while (!_shouldStop)
             {
-                while (_lineQueue.TryDequeue(out line))
+                res = _parentForm.getLineQueueLine(_fileName, out line);
+                if (_regexes != null && res)
                 {
                     foreach (var regex in _regexes)
                     {
@@ -409,7 +468,11 @@ namespace beParser
                             }
                             threadLogOutput(sb.ToString());
                         }
-                    }
+                    } 
+                }
+                else
+                {
+                    SpinAndWait(1000);
                 }
             }
 
