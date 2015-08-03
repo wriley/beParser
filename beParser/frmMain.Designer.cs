@@ -35,6 +35,8 @@
             // 
             // rtbOutput
             // 
+            this.rtbOutput.CausesValidation = false;
+            this.rtbOutput.DetectUrls = false;
             this.rtbOutput.Location = new System.Drawing.Point(12, 41);
             this.rtbOutput.Name = "rtbOutput";
             this.rtbOutput.ReadOnly = true;
@@ -59,6 +61,7 @@
             this.btnRCON.TabIndex = 2;
             this.btnRCON.Text = "RCON";
             this.btnRCON.UseVisualStyleBackColor = true;
+            this.btnRCON.Click += new System.EventHandler(this.btnRCON_Click);
             // 
             // frmMain
             // 

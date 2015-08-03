@@ -17,9 +17,10 @@ namespace beParser
         List<String> filesToWatch = new List<String>();
         List<Worker> workerObjects = new List<Worker>();
         List<Thread> workerThreads = new List<Thread>();
-        String basePath = "c:\\arma2oa\\dayz_2\\BattlEye";
-        BlockingCollection<string> debugLogQueue = new BlockingCollection<string>();
-        BlockingCollection<string> outputLogQueue = new BlockingCollection<string>();
+        string basePath = "C:\\arma2oa\\dayz_2\\BattlEye";
+        //string basePath = "testlogs";
+        ConcurrentQueue<string> debugLogQueue = new ConcurrentQueue<string>();
+        ConcurrentQueue<string> outputLogQueue = new ConcurrentQueue<string>();
 
         public frmMain()
         {
@@ -28,7 +29,7 @@ namespace beParser
 
         private void fmrMain_Load(object sender, EventArgs e)
         {
-            filesToWatch.Add("server.log");
+            filesToWatch.Add("..\\server_console.log");
             filesToWatch.Add("addweaponcargo.log");
             filesToWatch.Add("addmagazinecargo.log");
             filesToWatch.Add("remoteexec.log");
@@ -39,7 +40,7 @@ namespace beParser
             filesToWatch.Add("publicvariable.log");
             filesToWatch.Add("attachto.log");
             filesToWatch.Add("waypointstatements.log");
-            filesToWatch.Add("arma2oaserver.RPT");
+            filesToWatch.Add("..\\arma2oaserver.RPT");
             filesToWatch.Add("scripts.log");
             
             this.Run();
@@ -49,13 +50,13 @@ namespace beParser
         {
             var timerDebugLog = new System.Timers.Timer();
             timerDebugLog.AutoReset = true;
-            timerDebugLog.Interval = 50;
+            timerDebugLog.Interval = 1000;
             timerDebugLog.Elapsed += TimerDebugLog_Elapsed;
             timerDebugLog.Start();
 
             var timerOutputLog = new System.Timers.Timer();
             timerOutputLog.AutoReset = true;
-            timerOutputLog.Interval = 50;
+            timerOutputLog.Interval = 1000;
             timerOutputLog.Elapsed += TimerOutputLog_Elapsed;
             timerOutputLog.Start();
 
@@ -72,7 +73,8 @@ namespace beParser
 
         private void TimerDebugLog_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
-            foreach (var s in debugLogQueue.GetConsumingEnumerable())
+            string s;
+            while(debugLogQueue.TryDequeue(out s))
             {
                 updateDebugText(s);
             }
@@ -80,7 +82,8 @@ namespace beParser
 
         private void TimerOutputLog_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
-            foreach (var s in outputLogQueue.GetConsumingEnumerable())
+            string s;
+            while(outputLogQueue.TryDequeue(out s))
             {
                 updateOutputText(s);
             }
@@ -170,12 +173,12 @@ namespace beParser
 
         public void logDebug(String s)
         {
-            debugLogQueue.Add(addDateString(s));
+            debugLogQueue.Enqueue(addDateString(s));
         }
 
         public void logOutput(String s)
         {
-            outputLogQueue.Add(addDateString(s));
+            outputLogQueue.Enqueue(addDateString(s));
         }
 
         private String getDateString()
@@ -188,6 +191,10 @@ namespace beParser
             return getDateString() + " " + s;
         }
 
+        private void btnRCON_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show("not yet implemented");
+        }
     }
 
     public class Worker
@@ -208,7 +215,7 @@ namespace beParser
         {
             threadLogDebug("starting for file " + _fileName);
 
-            while(!_shouldStop)
+            while (!_shouldStop)
             {
                 try
                 {
@@ -233,13 +240,15 @@ namespace beParser
                             threadLogOutput(line);
                         }
                         lastSize = currentSize;
+                        Thread.Sleep(5);
                     }
                     if (fs != null) { fs.Close(); }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    threadLogDebug("No file " + _fileName + ", sleeping for a bit");
-                    Thread.Sleep(2000);
+                    threadLogDebug("Error opening file: " + ex.Message);
+                    _shouldStop = true;
+                    //TODO: have main form re-check?
                 }
             }
             threadLogDebug("exiting");
