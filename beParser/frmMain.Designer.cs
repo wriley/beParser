@@ -60,7 +60,7 @@
             this.btnRCON.Text = "RCON";
             this.btnRCON.UseVisualStyleBackColor = true;
             // 
-            // fmrMain
+            // frmMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -68,7 +68,7 @@
             this.Controls.Add(this.btnRCON);
             this.Controls.Add(this.rtbDebug);
             this.Controls.Add(this.rtbOutput);
-            this.Name = "fmrMain";
+            this.Name = "frmMain";
             this.Text = "beParser";
             this.Load += new System.EventHandler(this.fmrMain_Load);
             this.ResumeLayout(false);
@@ -80,7 +80,6 @@
         private System.Windows.Forms.RichTextBox rtbOutput;
         private System.Windows.Forms.RichTextBox rtbDebug;
         private System.Windows.Forms.Button btnRCON;
-
     }
 }
 

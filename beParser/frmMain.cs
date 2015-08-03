@@ -26,10 +26,10 @@ namespace beParser
         private void fmrMain_Load(object sender, EventArgs e)
         {
             filesToWatch.Add("scripts.log");
-            filesToWatch.Add("arma2oaserver.RPT");
-            filesToWatch.Add("attachto.log");
-            filesToWatch.Add("publicvariable.log");
-            filesToWatch.Add("setvariable.log");
+            //filesToWatch.Add("arma2oaserver.RPT");
+            //filesToWatch.Add("attachto.log");
+            //filesToWatch.Add("publicvariable.log");
+            //filesToWatch.Add("setvariable.log");
 
             logDebug("LOADED");
 
@@ -51,12 +51,48 @@ namespace beParser
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            foreach(Worker w in workerObjects)
+            int threadsRunning = 0;
+            foreach(Thread t in workerThreads)
             {
-                w.RequestStop();
+                if(!t.Join(0))
+                {
+                    threadsRunning++;
+                }
+            }
+            if (threadsRunning > 0)
+            {
+                e.Cancel = true;
+                foreach (Worker w in workerObjects)
+                {
+                    w.RequestStop();
+                }
+                var timer = new System.Timers.Timer();
+                timer.AutoReset = false;
+                timer.SynchronizingObject = this;
+                timer.Interval = 1000;
+                timer.Elapsed +=
+                    (sender, args) =>
+                    {
+                        threadsRunning = 0;
+                        foreach (Thread t in workerThreads)
+                        {
+                            if (!t.Join(0))
+                            {
+                                threadsRunning++;
+                            }
+                        }
+                        if(threadsRunning == 0)
+                        {
+                            Close();
+                        }
+                        else
+                        {
+                            timer.Start();
+                        }
+                    };
+                timer.Start();
             }
 
-            base.OnFormClosing(e);
         }
 
         delegate void logDebugDelegate(String s);
@@ -71,6 +107,8 @@ namespace beParser
             else
             {
                 rtbOutput.Text += addDateString(s);
+                rtbOutput.SelectionStart = rtbOutput.Text.Length;
+                rtbOutput.ScrollToCaret();
             }
         }
 
@@ -83,6 +121,7 @@ namespace beParser
         {
             return getDateString() + " " + s + "\n";
         }
+
     }
 
     public class Worker
@@ -90,30 +129,75 @@ namespace beParser
         private volatile bool _shouldStop;
         private frmMain _parentForm;
         private String _filePath;
-        private FileStream _fileStream;
+        private String _fileName;
 
         public Worker(frmMain parentForm, String filePath)
         {
             this._parentForm = parentForm;
             this._filePath = filePath;
+            this._fileName = Path.GetFileName(_filePath);
         }
 
         public void DoWork()
         {
             threadLogDebug("starting");
 
-
             while(!_shouldStop)
             {
-                threadLogDebug("sleeping");
-                Thread.Sleep(1000);
+                try
+                {
+                    FileStream fs = File.Open(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    StreamReader sr = new StreamReader(fs);
+                    Int64 lastSize = GetFileSize();
+                    sr.BaseStream.Seek(lastSize, SeekOrigin.Begin);
+                    string line;
+                    Int64 currentSize;
+                    while (!_shouldStop)
+                    {
+                        currentSize = GetFileSize();
+                        if (currentSize < lastSize)
+                        {
+                            threadLogDebug("File size reduced, starting at beginning of file");
+                            sr.DiscardBufferedData();
+                            sr.BaseStream.Seek(0, SeekOrigin.Begin);
+                            sr.BaseStream.Position = 0;
+                        }
+                        if((line = sr.ReadLine()) != null)
+                        {
+                            threadLogDebug(line);
+                        }
+                        lastSize = currentSize;
+                    }
+                    if (fs != null) { fs.Close(); }
+                }
+                catch (Exception)
+                {
+                    threadLogDebug("Error opening file, sleeping for a bit");
+                    Thread.Sleep(2000);
+                }
             }
             threadLogDebug("exiting");
         }
 
+        private Int64 GetFileSize()
+        {
+            FileStream fs = null;
+            Int64 length;
+            try
+            {
+                fs = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                length = fs.Length;
+                return length;
+            }
+            finally
+            {
+                fs.Close();
+            }
+        }
+
         private void threadLogDebug(String s)
         {
-            _parentForm.logDebug("Thread " + System.Threading.Thread.CurrentThread.ManagedThreadId.ToString() + " " + s);
+            _parentForm.logDebug(_fileName + ": " + s);
         }
 
         public void RequestStop()
