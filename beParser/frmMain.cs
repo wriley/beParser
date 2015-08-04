@@ -579,7 +579,7 @@ namespace beParser
                                     threadLogDebug(_fileName + " " + _linesRead + " lines read");
                                 }
                                 _parentForm.addLineQueueLine(_fileName, line);
-                                //threadLogOutput(line);
+                                //threadLogDebug(line);
                             }
                             else
                             {
@@ -705,7 +705,7 @@ namespace beParser
 
                             if (_parentForm.newPlayer(player, guid))
                             {
-                                threadLogOutput("GUID seen '" + player + "'=>" + guid);
+                                threadLogOutput(_parentForm.getDateString() + " GUID seen '" + player + "'=>" + guid);
                             }
 
                             _parentForm.playerToGuidAdd(player, guid);
@@ -715,6 +715,8 @@ namespace beParser
 
                     if (_fileName == "publicvariable")
                     {
+                        // 04.08.2015 00:47:33: Kerbo (192.168.76.140:2304) 3989bfdc6b155c5fcededce80cd04710 - #11 "PVDZ_send" = [<NULL-object>,"dayzSetDate",[<NULL-object>]]
+                        // 04.08.2015 00:47:56: Kerbo (192.168.76.140:2304) 3989bfdc6b155c5fcededce80cd04710 - #9 "PVDZ_plr_LoginRecord" = ["76561198094288543","2368",0]
                         // 03.08.2015 19:35:22: Nightmare (187.233.88.182:23204) b4e065d95d7ceb35128b2c9f5b71194a - #9 "PVDZ_plr_LoginRecord" = ["76561198075755817","3221",0]
                         Regex publicvariable1 = new Regex(@"([0-9]+\.[0-9]+\.[0-9]+ [0-9]+:[0-9]+:[0-9]+): (.*) \(([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}):[0-9]+\) ([0-9a-z]{32}) - ");
                         _match1 = publicvariable1.Match(line);
@@ -734,6 +736,11 @@ namespace beParser
                             player = _match1.Groups[2].Value;
                             ip = _match1.Groups[3].Value;
                             guid = _match1.Groups[4].Value;
+
+                            if (_parentForm.newPlayer(player, guid))
+                            {
+                                threadLogOutput(_match1.Groups[1].Value + " GUID seen '" + player + "'=>" + guid);
+                            }
 
                             _parentForm.playerToGuidAdd(player, guid);
                         }
@@ -780,7 +787,7 @@ namespace beParser
                                 _parentForm.updateRuleCount(key);
                                 int currentCount = _parentForm.getRuleCount(key);
 
-                                threadLogOutput("key:" + key + " " + currentCount + "/" + fileCheck.count + ":" + _fileName + ":" + line);
+                                threadLogOutput(currentCount + "/" + fileCheck.count + ":" + _fileName + ":" + line);
                                 if (currentCount == fileCheck.count)
                                 {
                                     threadLogRcon("addBan " + guid + " -1 " + rule + " " + _parentForm.getDateString());
