@@ -16,20 +16,27 @@ namespace beParser
 {
     public partial class frmMain : Form
     {
-        List<Producer> producerObjects = new List<Producer>();
-        List<Consumer> consumerObjects = new List<Consumer>();
-        List<Thread> workerThreads = new List<Thread>();
-        List<playerObject> playerObjects = new List<playerObject>();
+        //private
+        private List<Producer> producerObjects = new List<Producer>();
+        private List<Consumer> consumerObjects = new List<Consumer>();
+        private List<Thread> workerThreads = new List<Thread>();
 
-        string basePath = "C:\\arma2oa\\dayz_2\\BattlEye";
+        private ConcurrentQueue<string> debugLogQueue = new ConcurrentQueue<string>();
+        private ConcurrentQueue<string> outputLogQueue = new ConcurrentQueue<string>();
+        private ConcurrentQueue<string> rconLogQueue = new ConcurrentQueue<string>();
+
+        private string basePath = "C:\\arma2oa\\dayz_2\\BattlEye";
         //string basePath = "testlogs\\BattlEye";
 
-        ConcurrentQueue<string> debugLogQueue = new ConcurrentQueue<string>();
-        ConcurrentQueue<string> outputLogQueue = new ConcurrentQueue<string>();
-
-        Dictionary<string, ConcurrentQueue<string>> lineQueues = new Dictionary<string, ConcurrentQueue<string>>();
-        Dictionary<string, Regex[]> fileRegexes = new Dictionary<string, Regex[]>();
-        Dictionary<string, List<fileCheck>> fileChecks = new Dictionary<string, List<fileCheck>>();
+        // public
+        public Dictionary<string, string> playerToGuid = new Dictionary<string, string>();
+        public Dictionary<string, string> uidToPlayer = new Dictionary<string, string>();
+        public Dictionary<int, string> slotToIP = new Dictionary<int, string>();
+        public Dictionary<string, int> playerToSlot = new Dictionary<string, int>();
+        public List<string> alreadyBannedGuids = new List<string>();
+        public Dictionary<string, ConcurrentQueue<string>> lineQueues = new Dictionary<string, ConcurrentQueue<string>>();
+        public Dictionary<string, List<fileCheck>> fileChecks = new Dictionary<string, List<fileCheck>>();
+        public Dictionary<string, int> ruleCounts = new Dictionary<string, int>();
 
         public struct fileCheck
         {
@@ -49,21 +56,15 @@ namespace beParser
             }
         }
 
-        public struct playerObject
+        public struct ruleCount
         {
-            public string guid;
-            public string name;
-            public string ip;
-            public int slot;
-            public string uid;
+            public string rule;
+            public int count;
 
-            public playerObject(string guid, string name = null, string ip = null, int slot = -1, string uid = null)
+            public ruleCount(string rule, int count = 0)
             {
-                this.guid = guid;
-                this.name = name;
-                this.ip = ip;
-                this.slot = slot;
-                this.uid = uid;
+                this.rule = rule;
+                this.count = count;
             }
         }
 
@@ -96,12 +97,14 @@ namespace beParser
             Thread tDebug = new Thread(doDebugLog);
             tDebug.IsBackground = true;
             tDebug.Start();
-            logDebug("DEBUG");
 
             Thread tOutput = new Thread(doOutputLog);
             tOutput.IsBackground = true;
             tOutput.Start();
-            logOutput("OUTPUT");
+
+            Thread tRcon = new Thread(doRconLog);
+            tRcon.IsBackground = true;
+            tRcon.Start();
 
             // create and start producer threads
             foreach (String file in fileChecks.Keys)
@@ -174,6 +177,22 @@ namespace beParser
             }
         }
 
+        private void doRconLog()
+        {
+            string s;
+            for (;;)
+            {
+                if (rconLogQueue.TryDequeue(out s))
+                {
+                    updateRconText(s);
+                }
+                else
+                {
+                    Thread.Sleep(100);
+                }
+            }
+        }
+
         delegate void updateDebugTextCallback(string s);
         private void updateDebugText(string s)
         {
@@ -217,6 +236,29 @@ namespace beParser
                 rtbOutput.Text += s + Environment.NewLine;
                 rtbOutput.SelectionStart = rtbOutput.Text.Length;
                 rtbOutput.ScrollToCaret();
+            }
+        }
+
+        delegate void updateRconTextCallback(string s);
+        private void updateRconText(string s)
+        {
+            if (this.rtbRcon.InvokeRequired)
+            {
+                updateRconTextCallback d = new updateRconTextCallback(updateRconText);
+                try
+                {
+                    Invoke(d, new object[] { s });
+                }
+                catch (Exception ex)
+                {
+                    logRcon(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                }
+            }
+            else
+            {
+                rtbRcon.Text += s + Environment.NewLine;
+                rtbRcon.SelectionStart = rtbOutput.Text.Length;
+                rtbRcon.ScrollToCaret();
             }
         }
 
@@ -273,22 +315,27 @@ namespace beParser
 
         }
 
-        public void logDebug(String s)
+        internal void logDebug(String s)
         {
             debugLogQueue.Enqueue(addDateString(s));
         }
 
-        public void logOutput(String s)
+        internal void logOutput(String s)
         {
             outputLogQueue.Enqueue(s);
         }
 
-        public String getDateString()
+        internal void logRcon(String s)
+        {
+            rconLogQueue.Enqueue(s);
+        }
+
+        internal String getDateString()
         {
             return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         }
 
-        public String addDateString(String s)
+        internal String addDateString(String s)
         {
             return getDateString() + " " + s;
         }
@@ -298,7 +345,7 @@ namespace beParser
             MessageBox.Show("Not yet implemented");
         }
 
-        public bool getLineQueueLine(string fileName, out string line)
+        internal bool getLineQueueLine(string fileName, out string line)
         {
             bool res = false;
             try
@@ -315,7 +362,7 @@ namespace beParser
 
         }
 
-        public void addLineQueueLine(string fileName, string s)
+        internal void addLineQueueLine(string fileName, string s)
         {
             try
             {
@@ -327,7 +374,7 @@ namespace beParser
             }
         }
 
-        public List<fileCheck> getFileChecks(string fileName)
+        internal List<fileCheck> getFileChecks(string fileName)
         {
             try
             {
@@ -340,6 +387,114 @@ namespace beParser
             }
         }
 
+        internal void playerToGuidAdd(string player, string guid)
+        {
+            if (!playerToGuid.ContainsKey(player))
+            {
+                playerToGuid.Add(player, guid);
+            }
+        }
+
+        internal string playerToGuidGet(string player)
+        {
+            if (playerToGuid.ContainsKey(player))
+            {
+                return playerToGuid[player];
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        internal void uidToPlayerAdd(string uid, string player)
+        {
+            if (!uidToPlayer.ContainsKey(uid))
+            {
+                uidToPlayer.Add(uid, player);
+            }
+        }
+
+        internal string uidToPlayerGet(string uid)
+        {
+            if (uidToPlayer.ContainsKey(uid))
+            {
+                return uidToPlayer[uid];
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        internal void slotToIPAdd(int slot, string ip)
+        {
+            if (!slotToIP.ContainsKey(slot))
+            {
+                slotToIP.Add(slot, ip);
+            }
+        }
+
+        internal string slotToIPGet(int slot)
+        {
+            if (slotToIP.ContainsKey(slot))
+            {
+                return slotToIP[slot];
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        internal void playerToSlotAdd(string player, int slot)
+        {
+            if (!playerToSlot.ContainsKey(player))
+            {
+                playerToSlot.Add(player, slot);
+            }
+        }
+
+        internal int playerToSlotGet(string player)
+        {
+            if (playerToSlot.ContainsKey(player))
+            {
+                return playerToSlot[player];
+            }
+            else
+            {
+                return -1;
+            }
+        }
+
+        internal bool newPlayer(string player, string guid)
+        {
+            return !playerToGuid.ContainsKey(player);
+        }
+
+        internal void updateRuleCount(string key)
+        {
+            if (!ruleCounts.ContainsKey(key))
+            {
+                ruleCounts.Add(key, 1);
+            }
+            else
+            {
+                ruleCounts[key]++;
+            }
+        }
+
+        internal int getRuleCount(string key)
+        {
+            if (ruleCounts.ContainsKey(key))
+            {
+                return ruleCounts[key];
+            }
+            else
+            {
+                return 0;
+            }
+        }
     }
 
     public class GenericWorkerThread
@@ -380,6 +535,7 @@ namespace beParser
         private FileStream _fs;
         private StreamReader _sr;
         private Int64 _linesRead = 0;
+        private bool _fileRotated = false;
 
         public Producer(frmMain parentForm, String filePath, string fileName)
         {
@@ -397,42 +553,45 @@ namespace beParser
             {
                 try
                 {
-                    _fs = File.Open(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    _fs = File.Open(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                     _sr = new StreamReader(_fs);
                     Int64 lastSize = GetFileSize();
                     //sr.BaseStream.Seek(lastSize, SeekOrigin.Begin);
                     string line;
                     Int64 currentSize;
-                    while (!_shouldStop)
+                    while (!_shouldStop && !_fileRotated)
                     {
                         currentSize = GetFileSize();
                         if (currentSize < lastSize)
                         {
-                            threadLogDebug("File size reduced, starting at beginning of file");
-                            _sr.DiscardBufferedData();
-                            _sr.BaseStream.Seek(0, SeekOrigin.Begin);
-                            _sr.BaseStream.Position = 0;
-                        }
-                        if ((line = _sr.ReadLine()) != null)
-                        {
-                            _linesRead++;
-                            if ((_linesRead % 100) == 0)
-                            {
-                                threadLogDebug(_fileName + " " + _linesRead + " lines read");
-                            }
-                            _parentForm.addLineQueueLine(_fileName, line);
-                            //threadLogOutput(line);
+                            threadLogDebug("File size reduced, assuming log was rotated");
+                            _fileRotated = true;
+                            _sr.Close();
+                            _fs.Close();
                         }
                         else
                         {
-                            SpinAndWait(1000);
+                            if ((line = _sr.ReadLine()) != null)
+                            {
+                                _linesRead++;
+                                if ((_linesRead % 100) == 0)
+                                {
+                                    threadLogDebug(_fileName + " " + _linesRead + " lines read");
+                                }
+                                _parentForm.addLineQueueLine(_fileName, line);
+                                //threadLogOutput(line);
+                            }
+                            else
+                            {
+                                SpinAndWait(1000);
+                            }
+                            lastSize = currentSize;
                         }
-                        lastSize = currentSize;
                     }
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-                    threadLogDebug("Error opening file: " + ex.Message + " will retry in 5 seconds");
+                    // Unable to open file so wait and try again
                     SpinAndWait(5000);
                 }
                 finally
@@ -469,14 +628,14 @@ namespace beParser
         private Regex _regex2;
         private Match _match1;
         private Match _match2;
-        private Match _match3;
         private List<frmMain.fileCheck> _fileChecks;
         private Int64 linesRead;
         private string guid;
-        private string uid;
         private string player;
         private string ip;
         private int slot;
+        private string rule;
+        private Int32 unixtime = 0;
 
         public Consumer(frmMain parentForm, string fileName)
         {
@@ -501,23 +660,10 @@ namespace beParser
                     // Special checks
                     if (_fileName == "server_console")
                     {
-                        /*
-                        16:26:41 BattlEye Server: Player #0 ZBuffet (174.26.147.224:23204) connected
-                        16:26:41 Player ZBuffet connecting.
-                        16:26:41 Mission DayZMod read from bank.
-                        16:26:42 BattlEye Server: Player #0 ZBuffet - GUID: 0f09332d84ea4d1cd6bcd7332ae81d24 (unverified)
-                        16:26:42 Player ZBuffet connected (id=76561198054374215).
-                        16:26:43 BattlEye Server: Verified GUID (0f09332d84ea4d1cd6bcd7332ae81d24) of player #0 ZBuffet
-                        16:26:43 BattlEye Server: Player #0 ZBuffet - Legacy GUID: e9d3eee74198565932422a8c8a666aef
-                        */
                         Regex server_console1 = new Regex(@"BattlEye Server: Player #([0-9]+) (.*) \(([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}):[0-9]+\) connected");
                         Regex server_console2 = new Regex(@"BattlEye Server: Verified GUID \(([0-9a-z]+)\) of player #([0-9]+) (.*)");
-                        Regex server_console3 = new Regex(@"Player (.*) connected \(id=([0-9]+)\)");
                         _match1 = server_console1.Match(line);
                         _match2 = server_console2.Match(line);
-                        _match3 = server_console3.Match(line);
-
-                        StringBuilder sb = new StringBuilder("sc ID: ");
 
                         if (_match1.Success)
                         {
@@ -532,8 +678,15 @@ namespace beParser
                             }
                             player = _match1.Groups[2].Value;
                             ip = _match1.Groups[3].Value;
-                            sb.Append("Player #" + slot + " " + player + " " + ip + "");
-                            threadLogOutput(sb.ToString());
+
+                            _parentForm.slotToIPAdd(slot, ip);
+                            _parentForm.playerToSlotAdd(player, slot);
+                        }
+                        else
+                        {
+                            slot = -1;
+                            player = null;
+                            ip = null;
                         }
 
                         if (_match2.Success)
@@ -549,48 +702,53 @@ namespace beParser
                                 slot = -1;
                             }
                             player = _match2.Groups[3].Value;
-                            sb.Append("Player #" + slot + " " + player + " (" + guid + ")");
-                            threadLogOutput(sb.ToString());
-                        }
 
-                        if (_match3.Success)
-                        {
-                            // player uid
-                            player = _match3.Groups[1].Value;
-                            uid = _match3.Groups[2].Value;
-                            sb.Append(player + " (" + uid + ")");
-                            threadLogOutput(sb.ToString());
+                            if (_parentForm.newPlayer(player, guid))
+                            {
+                                threadLogOutput("GUID seen '" + player + "'=>" + guid);
+                            }
+
+                            _parentForm.playerToGuidAdd(player, guid);
+                            _parentForm.playerToSlotAdd(player, slot);
                         }
                     }
 
-                    if(_fileName == "publicvariable")
+                    if (_fileName == "publicvariable")
                     {
                         // 03.08.2015 19:35:22: Nightmare (187.233.88.182:23204) b4e065d95d7ceb35128b2c9f5b71194a - #9 "PVDZ_plr_LoginRecord" = ["76561198075755817","3221",0]
-                        Regex publicvariable1 = new Regex(@": (.*) \(([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}):[0-9]+\) ([0-9a-z]+) - #([0-9]+) ""PVDZ_plr_LoginRecord"" = \[""([0-9]+)"",");
+                        Regex publicvariable1 = new Regex(@"([0-9]+\.[0-9]+\.[0-9]+ [0-9]+:[0-9]+:[0-9]+): (.*) \(([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}):[0-9]+\) ([0-9a-z]{32}) - ");
                         _match1 = publicvariable1.Match(line);
-                        if(_match1.Success)
+                        if (_match1.Success)
                         {
-                            StringBuilder sb = new StringBuilder("pv ID: ");
-                            // player ip guid slot uid
-                            player = _match1.Groups[1].Value;
-                            ip = _match1.Groups[2].Value;
-                            guid = _match1.Groups[3].Value;
+                            // date
                             try
                             {
-                                slot = Convert.ToInt16(_match1.Groups[4].Value);
+                                unixtime = (Int32)(Convert.ToDateTime(_match1.Groups[1].Value).Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
                             }
                             catch (Exception)
                             {
-                                slot = -1;
+                                unixtime = (Int32)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
                             }
-                            sb.Append("Player #" + slot + " " + player + " " + guid + " " + ip);
-                            threadLogOutput(sb.ToString());
+
+                            // player ip guid
+                            player = _match1.Groups[2].Value;
+                            ip = _match1.Groups[3].Value;
+                            guid = _match1.Groups[4].Value;
+
+                            _parentForm.playerToGuidAdd(player, guid);
+                        }
+                        else
+                        {
+                            player = null;
+                            ip = null;
+                            guid = null;
                         }
                     }
 
                     for (int i = 0; i < _fileChecks.Count; i++)
                     {
                         frmMain.fileCheck fileCheck = _fileChecks[i];
+                        rule = "BP-" + _fileName + "-" + i;
 
                         if (fileCheck.regex_match != null)
                         {
@@ -604,30 +762,39 @@ namespace beParser
                             _match2 = _regex2.Match(line);
                         }
 
-                        StringBuilder sb = new StringBuilder("BP-" + _fileName + "-" + i + " ");
                         // def, def
-                        if (((fileCheck.regex_match != null) && _match1.Success) && ((fileCheck.regex_nomatch != null) && !_match2.Success))
+                        if (
+                            ((fileCheck.regex_match != null) && _match1.Success) && ((fileCheck.regex_nomatch != null) && !_match2.Success) ||
+                            ((fileCheck.regex_match != null) && _match1.Success) && (fileCheck.regex_nomatch == null) ||
+                            ((fileCheck.regex_match == null) && ((fileCheck.regex_nomatch != null) && !_match2.Success))
+                            )
                         {
-                            sb.Append(_match1.Value);
-                            threadLogOutput(sb.ToString());
-                        }
+                            if ((guid != null) && (guid != ""))
+                            {
+                                if(unixtime == 0)
+                                {
+                                    unixtime = (Int32)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
+                                }
+                                string key = rule + guid + Convert.ToString(Convert.ToDecimal((unixtime / fileCheck.seconds)));
 
-                        // def, undef
-                        if (((fileCheck.regex_match != null) && _match1.Success) && (fileCheck.regex_nomatch == null))
-                        {
-                            sb.Append(_match1.Value);
-                            threadLogOutput(sb.ToString());
-                        }
-                        // undef, def
-                        if ((fileCheck.regex_match == null) && ((fileCheck.regex_nomatch != null) && !_match2.Success))
-                        {
-                            sb.Append(_match2.Value);
-                            threadLogOutput(sb.ToString());
+                                _parentForm.updateRuleCount(key);
+                                int currentCount = _parentForm.getRuleCount(key);
+
+                                threadLogOutput("key:" + key + " " + currentCount + "/" + fileCheck.count + ":" + _fileName + ":" + line);
+                                if (currentCount == fileCheck.count)
+                                {
+                                    threadLogRcon("addBan " + guid + " -1 " + rule + " " + _parentForm.getDateString());
+                                    _parentForm.ruleCounts.Remove(key);
+                                }
+                                else
+                                {
+                                }
+                            }
+
                         }
                         // undef, undef
-                        if ((fileCheck.regex_match == null) && (fileCheck.regex_nomatch == null))
+                        else
                         {
-
                         }
                     }
 
@@ -645,6 +812,11 @@ namespace beParser
         public void threadLogOutput(String s)
         {
             _parentForm.logOutput(s);
+        }
+
+        public void threadLogRcon(String s)
+        {
+            _parentForm.logRcon(s);
         }
     }
 }
