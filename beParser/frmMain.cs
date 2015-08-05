@@ -1,16 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using System.Reflection;
+using System.Linq;
+using System.Xml.Linq;
+using System.Xml.Serialization;
+using System.Text;
 
 namespace beParser
 {
@@ -25,8 +24,8 @@ namespace beParser
         private ConcurrentQueue<string> outputLogQueue = new ConcurrentQueue<string>();
         private ConcurrentQueue<string> rconLogQueue = new ConcurrentQueue<string>();
 
-        private string basePath = "C:\\arma2oa\\dayz_2\\BattlEye";
-        //string basePath = "testlogs\\BattlEye";
+        private string basePath = "C://arma2oa//dayz_2//BattlEye";
+        //string basePath = "testlogs//BattlEye";
 
         // public
         public Dictionary<string, string> playerToGuid = new Dictionary<string, string>();
@@ -35,10 +34,56 @@ namespace beParser
         public Dictionary<string, int> playerToSlot = new Dictionary<string, int>();
         public List<string> alreadyBannedGuids = new List<string>();
         public Dictionary<string, ConcurrentQueue<string>> lineQueues = new Dictionary<string, ConcurrentQueue<string>>();
-        public Dictionary<string, List<fileCheck>> fileChecks = new Dictionary<string, List<fileCheck>>();
+        public Dictionary<string, List<FileCheck>> fileChecks = new Dictionary<string, List<FileCheck>>();
         public Dictionary<string, int> ruleCounts = new Dictionary<string, int>();
 
-        public struct fileCheck
+        [Serializable]
+        public class FileCheckData
+        {
+            public string FileName;
+            public List<FileCheck> FileChecks;
+
+            public FileCheckData(string fileName, List<FileCheck> fileChecks)
+            {
+                this.FileName = fileName;
+                this.FileChecks = fileChecks;
+            }
+
+            private FileCheckData()
+            {
+
+            }
+        }
+
+        private string SerializeFileCheckData()
+        {
+            List<FileCheckData> tempList = new List<FileCheckData>(fileChecks.Count);
+            foreach (string key in fileChecks.Keys)
+            {
+                tempList.Add(new FileCheckData(key, fileChecks[key]));
+            }
+            XmlSerializer serializer = new XmlSerializer(typeof(List<FileCheckData>));
+            StringWriter sw = new StringWriter();
+            XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
+            ns.Add("", "");
+            serializer.Serialize(sw, tempList, ns);
+
+            return sw.ToString();
+        }
+
+        private void DeserializeFileCheckData(string RawData)
+        {
+            fileChecks = new Dictionary<string, List<FileCheck>>();
+            XmlSerializer xs = new XmlSerializer(typeof(List<FileCheckData>));
+            StringReader sr = new StringReader(RawData);
+            List<FileCheckData> tempList = (List<FileCheckData>)xs.Deserialize(sr);
+            foreach (FileCheckData fcd in tempList)
+            {
+                fileChecks.Add(fcd.FileName, fcd.FileChecks);
+            }
+        }
+
+        public struct FileCheck
         {
             public int count;
             public int seconds;
@@ -46,7 +91,7 @@ namespace beParser
             public string regex_nomatch;
             public string command;
 
-            public fileCheck(int count, int seconds, string regex_match = null, string regex_nomatch = null, string command = null)
+            public FileCheck(int count, int seconds, string regex_match = null, string regex_nomatch = null, string command = null)
             {
                 this.count = count;
                 this.seconds = seconds;
@@ -75,36 +120,57 @@ namespace beParser
 
         private void fmrMain_Load(object sender, EventArgs e)
         {
-            // files to monitor
-            // TODO: move this to config file
-            fileChecks.Add("server_console", new List<fileCheck>());
-
-            fileChecks.Add("publicvariable", new List<fileCheck>());
-            fileChecks["publicvariable"].Add(new fileCheck(1, 0, "rmovein\"", null, "kickbyguid {0} BP-{1} {2} looting too fast {3}"));
-            fileChecks["publicvariable"].Add(new fileCheck(1, 0, "\"remExField\" = .*?(?:usecEpi|setDamage|markerType|setVehicleInit|%|usecMorphine|r_player_blood|BIS_Effects_Burn|fnc_usec_damage|bowen|preproces)"));
-            fileChecks["publicvariable"].Add(new fileCheck(1, 0, "(?:dayzJizz|dwarden)"));
-            fileChecks["publicvariable"].Add(new fileCheck(1, 0, "83,99,114,105,112,116"));
-            fileChecks["publicvariable"].Add(new fileCheck(-1, 10000, "wrong side", @"""PVDZ_sec_atp"" = \[""wrong side"",<NULL-object>\]"));
-            fileChecks["publicvariable"].Add(new fileCheck(1, 0, "Plants texture hack", null, "kickbyguid $guid;!sleep 1;addban $guid 2880 Plant texture hack for $player $date, 2 day ban"));
-            fileChecks["publicvariable"].Add(new fileCheck(75, 300, "time shift", null, "kickbyguid $guid You are time shifting/lagging, fix your internet."));
-
             Run();
         }
 
         private void Run()
         {
             // create and start UI threads
-            Thread tDebug = new Thread(doDebugLog);
+            Thread tDebug = new Thread(DoDebugLog);
             tDebug.IsBackground = true;
             tDebug.Start();
 
-            Thread tOutput = new Thread(doOutputLog);
+            Thread tOutput = new Thread(DoOutputLog);
             tOutput.IsBackground = true;
             tOutput.Start();
 
-            Thread tRcon = new Thread(doRconLog);
+            Thread tRcon = new Thread(DoRconLog);
             tRcon.IsBackground = true;
             tRcon.Start();
+
+            // Load files to monitor from fileChecks.xml
+            LoadFileChecks();
+
+            /*
+            // TODO: move this to config file
+            fileChecks.Add("server_console", new List<FileCheck>());
+
+            fileChecks.Add("publicvariable", new List<FileCheck>());
+            fileChecks["publicvariable"].Add(new FileCheck(1, 0, "rmovein\"", null, "kickbyguid {0} BP-{1} {2} looting too fast {3}"));
+            fileChecks["publicvariable"].Add(new FileCheck(1, 0, "\"remExField\" = .*?(?:usecEpi|setDamage|markerType|setVehicleInit|%|usecMorphine|r_player_blood|BIS_Effects_Burn|fnc_usec_damage|bowen|preproces)"));
+            fileChecks["publicvariable"].Add(new FileCheck(1, 0, "(?:dayzJizz|dwarden)"));
+            fileChecks["publicvariable"].Add(new FileCheck(1, 0, "83,99,114,105,112,116"));
+            fileChecks["publicvariable"].Add(new FileCheck(-1, 10000, "wrong side", @"""PVDZ_sec_atp"" = \[""wrong side"",<NULL-object>\]"));
+            fileChecks["publicvariable"].Add(new FileCheck(1, 0, "Plants texture hack", null, "kickbyguid $guid;!sleep 1;addban $guid 2880 Plant texture hack for $player $date, 2 day ban"));
+            fileChecks["publicvariable"].Add(new FileCheck(75, 300, "time shift", null, "kickbyguid $guid You are time shifting/lagging, fix your internet."));
+            */
+
+            /*
+            // TEMP WRITE
+            Console.WriteLine("Starting serialization");
+            try
+            {
+                StreamWriter sw = new StreamWriter("fileChecks.xml");
+                sw.Write(SerializeFileCheckData());
+                sw.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error saving to XML: " + ex.Message);
+            }
+            Console.WriteLine("Done with serialization");
+            // END TEMP WRITE
+            */
 
             // create and start producer threads
             foreach (String file in fileChecks.Keys)
@@ -114,15 +180,15 @@ namespace beParser
                 string fullPath = basePath;
                 if (file == "server_console")
                 {
-                    fullPath += "\\..\\" + file + ".log";
+                    fullPath += "//..//" + file + ".log";
                 }
                 else if (file == "arma2oaserver")
                 {
-                    fullPath += "\\..\\" + file + ".RPT";
+                    fullPath += "//..//" + file + ".RPT";
                 }
                 else
                 {
-                    fullPath += "\\" + file + ".log";
+                    fullPath += "//" + file + ".log";
                 }
                 Producer w = new Producer(this, fullPath, file);
                 producerObjects.Add(w);
@@ -145,14 +211,27 @@ namespace beParser
             }
         }
 
-        private void doDebugLog()
+        private void LoadFileChecks()
+        {
+            try
+            {
+                StreamReader sr = new StreamReader("fileChecks.xml");
+                DeserializeFileCheckData(sr.ReadToEnd());
+            }
+            catch (Exception ex)
+            {
+                LogDebug("Error loading fileChecks.xml: " + ex.Message);
+            }
+        }
+
+        private void DoDebugLog()
         {
             string s;
             for (;;)
             {
                 if (debugLogQueue.TryDequeue(out s))
                 {
-                    updateDebugText(s);
+                    UpdateDebugText(s);
                 }
                 else
                 {
@@ -161,14 +240,14 @@ namespace beParser
             }
         }
 
-        private void doOutputLog()
+        private void DoOutputLog()
         {
             string s;
             for (;;)
             {
                 if (outputLogQueue.TryDequeue(out s))
                 {
-                    updateOutputText(s);
+                    UpdateOutputText(s);
                 }
                 else
                 {
@@ -177,14 +256,14 @@ namespace beParser
             }
         }
 
-        private void doRconLog()
+        private void DoRconLog()
         {
             string s;
             for (;;)
             {
                 if (rconLogQueue.TryDequeue(out s))
                 {
-                    updateRconText(s);
+                    UpdateRconText(s);
                 }
                 else
                 {
@@ -193,72 +272,79 @@ namespace beParser
             }
         }
 
-        delegate void updateDebugTextCallback(string s);
-        private void updateDebugText(string s)
+        delegate void UpdateDebugTextCallback(string s);
+        private void UpdateDebugText(string s)
         {
-            if (this.rtbDebug.InvokeRequired)
+            try
             {
-                updateDebugTextCallback d = new updateDebugTextCallback(updateDebugText);
-                try
+                if (this.rtbDebug.InvokeRequired)
                 {
+
+                    UpdateDebugTextCallback d = new UpdateDebugTextCallback(UpdateDebugText);
+
                     Invoke(d, new object[] { s });
+
                 }
-                catch (Exception ex)
+                else
                 {
-                    logDebug(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                    rtbDebug.Text += s + Environment.NewLine;
+                    rtbDebug.SelectionStart = rtbDebug.Text.Length;
+                    rtbDebug.ScrollToCaret();
                 }
             }
-            else
+            catch (Exception ex)
             {
-                rtbDebug.Text += s + Environment.NewLine;
-                rtbDebug.SelectionStart = rtbDebug.Text.Length;
-                rtbDebug.ScrollToCaret();
+                LogDebug(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
             }
         }
 
-        delegate void updateOutputTextCallback(string s);
-        private void updateOutputText(string s)
+        delegate void UpdateOutputTextCallback(string s);
+        private void UpdateOutputText(string s)
         {
-            if (this.rtbOutput.InvokeRequired)
+            try
             {
-                updateOutputTextCallback d = new updateOutputTextCallback(updateOutputText);
-                try
+                if (this.rtbOutput.InvokeRequired)
                 {
+                    UpdateOutputTextCallback d = new UpdateOutputTextCallback(UpdateOutputText);
+
                     Invoke(d, new object[] { s });
+
                 }
-                catch (Exception ex)
+                else
                 {
-                    logDebug(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                    rtbOutput.Text += s + Environment.NewLine;
+                    rtbOutput.SelectionStart = rtbOutput.Text.Length;
+                    rtbOutput.ScrollToCaret();
                 }
             }
-            else
+            catch (Exception ex)
             {
-                rtbOutput.Text += s + Environment.NewLine;
-                rtbOutput.SelectionStart = rtbOutput.Text.Length;
-                rtbOutput.ScrollToCaret();
+                LogDebug(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
             }
         }
 
-        delegate void updateRconTextCallback(string s);
-        private void updateRconText(string s)
+        delegate void UpdateRconTextCallback(string s);
+        private void UpdateRconText(string s)
         {
-            if (this.rtbRcon.InvokeRequired)
+            try
             {
-                updateRconTextCallback d = new updateRconTextCallback(updateRconText);
-                try
+                if (this.rtbRcon.InvokeRequired)
                 {
+                    UpdateRconTextCallback d = new UpdateRconTextCallback(UpdateRconText);
+
                     Invoke(d, new object[] { s });
+
                 }
-                catch (Exception ex)
+                else
                 {
-                    logRcon(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                    rtbRcon.Text += s + Environment.NewLine;
+                    rtbRcon.SelectionStart = rtbOutput.Text.Length;
+                    rtbRcon.ScrollToCaret();
                 }
             }
-            else
+            catch (Exception ex)
             {
-                rtbRcon.Text += s + Environment.NewLine;
-                rtbRcon.SelectionStart = rtbOutput.Text.Length;
-                rtbRcon.ScrollToCaret();
+                LogRcon(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
             }
         }
 
@@ -315,29 +401,29 @@ namespace beParser
 
         }
 
-        internal void logDebug(String s)
+        internal void LogDebug(String s)
         {
-            debugLogQueue.Enqueue(addDateString(s));
+            debugLogQueue.Enqueue(AddDateString(s));
         }
 
-        internal void logOutput(String s)
+        internal void LogOutput(String s)
         {
             outputLogQueue.Enqueue(s);
         }
 
-        internal void logRcon(String s)
+        internal void LogRcon(String s)
         {
             rconLogQueue.Enqueue(s);
         }
 
-        internal String getDateString()
+        internal String GetDateString()
         {
             return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         }
 
-        internal String addDateString(String s)
+        internal String AddDateString(String s)
         {
-            return getDateString() + " " + s;
+            return GetDateString() + " " + s;
         }
 
         private void btnRCON_Click(object sender, EventArgs e)
@@ -345,7 +431,7 @@ namespace beParser
             MessageBox.Show("Not yet implemented");
         }
 
-        internal bool getLineQueueLine(string fileName, out string line)
+        internal bool GetLineQueueLine(string fileName, out string line)
         {
             bool res = false;
             try
@@ -355,14 +441,14 @@ namespace beParser
             }
             catch (Exception ex)
             {
-                logDebug(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                LogDebug(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
                 line = "";
                 return false;
             }
 
         }
 
-        internal void addLineQueueLine(string fileName, string s)
+        internal void AddLineQueueLine(string fileName, string s)
         {
             try
             {
@@ -370,11 +456,11 @@ namespace beParser
             }
             catch (Exception ex)
             {
-                logDebug(MethodBase.GetCurrentMethod().Name + "() " + ex.Message);
+                LogDebug(MethodBase.GetCurrentMethod().Name + "() " + ex.Message);
             }
         }
 
-        internal List<fileCheck> getFileChecks(string fileName)
+        internal List<FileCheck> GetFileChecks(string fileName)
         {
             try
             {
@@ -382,12 +468,12 @@ namespace beParser
             }
             catch (Exception ex)
             {
-                logDebug(MethodBase.GetCurrentMethod().Name + "() " + ex.Message);
+                LogDebug(MethodBase.GetCurrentMethod().Name + "() " + ex.Message);
                 return null;
             }
         }
 
-        internal void playerToGuidAdd(string player, string guid)
+        internal void PlayerToGuidAdd(string player, string guid)
         {
             if (!playerToGuid.ContainsKey(player))
             {
@@ -395,7 +481,7 @@ namespace beParser
             }
         }
 
-        internal string playerToGuidGet(string player)
+        internal string PlayerToGuidGet(string player)
         {
             if (playerToGuid.ContainsKey(player))
             {
@@ -407,7 +493,7 @@ namespace beParser
             }
         }
 
-        internal void uidToPlayerAdd(string uid, string player)
+        internal void UidToPlayerAdd(string uid, string player)
         {
             if (!uidToPlayer.ContainsKey(uid))
             {
@@ -415,7 +501,7 @@ namespace beParser
             }
         }
 
-        internal string uidToPlayerGet(string uid)
+        internal string UidToPlayerGet(string uid)
         {
             if (uidToPlayer.ContainsKey(uid))
             {
@@ -427,7 +513,7 @@ namespace beParser
             }
         }
 
-        internal void slotToIPAdd(int slot, string ip)
+        internal void SlotToIPAdd(int slot, string ip)
         {
             if (!slotToIP.ContainsKey(slot))
             {
@@ -435,7 +521,7 @@ namespace beParser
             }
         }
 
-        internal string slotToIPGet(int slot)
+        internal string SlotToIPGet(int slot)
         {
             if (slotToIP.ContainsKey(slot))
             {
@@ -447,7 +533,7 @@ namespace beParser
             }
         }
 
-        internal void playerToSlotAdd(string player, int slot)
+        internal void PlayerToSlotAdd(string player, int slot)
         {
             if (!playerToSlot.ContainsKey(player))
             {
@@ -455,7 +541,7 @@ namespace beParser
             }
         }
 
-        internal int playerToSlotGet(string player)
+        internal int PlayerToSlotGet(string player)
         {
             if (playerToSlot.ContainsKey(player))
             {
@@ -467,12 +553,12 @@ namespace beParser
             }
         }
 
-        internal bool newPlayer(string player, string guid)
+        internal bool NewPlayer(string player, string guid)
         {
             return !playerToGuid.ContainsKey(player);
         }
 
-        internal void updateRuleCount(string key)
+        internal void UpdateRuleCount(string key)
         {
             if (!ruleCounts.ContainsKey(key))
             {
@@ -484,7 +570,7 @@ namespace beParser
             }
         }
 
-        internal int getRuleCount(string key)
+        internal int GetRuleCount(string key)
         {
             if (ruleCounts.ContainsKey(key))
             {
@@ -495,6 +581,30 @@ namespace beParser
                 return 0;
             }
         }
+
+        internal void Ban(string guid = null, string ip = null, string player = null, int slot = -1, string date = null, string rule = null, string action = null)
+        {
+            if (guid != null || slot != 999 || player != null)
+            {
+                if (action == null && guid != null && !alreadyBannedGuids.Contains(guid))
+                {
+                    alreadyBannedGuids.Add(guid);
+                    // kickbyguid $guid;!sleep 1;addban $guid 0 BP-$rule $player $date;!sleep 1;addban $ip 0 BP-$rule $player $date
+                    string str = String.Format("kickbyguid {0};!sleep 1;addban {0} 0 BP-{1} {2} {3};!sleep 1;addban {4} 0 BP-{1} {2} {3}", guid, rule, player, date, ip);
+                    LogOutput(String.Format("{0} Trigger for GUID:{1} NAME:\"{2}\" SOURCE:{3} command={4}", date, guid, player, rule, str));
+                    LogRcon(str);
+                }
+                else if (action != null)
+                {
+                    LogOutput(String.Format("{0} Trigger for GUID:{1} NAME:\"{2}\" SOURCE:{3} command={4}", date, guid, player, rule, action));
+                    LogRcon("ACTION: " + action);
+                }
+                else
+                {
+                    LogOutput(String.Format("{0} No trigger for GUID:{1} NAME:\"{2}\" SOURCE:{3} already banned", date, guid, player, rule));
+                }
+            }
+        }
     }
 
     public class GenericWorkerThread
@@ -502,9 +612,9 @@ namespace beParser
         public volatile bool _shouldStop;
         public frmMain _parentForm;
 
-        public void threadLogDebug(String s)
+        public void ThreadLogDebug(String s)
         {
-            _parentForm.logDebug("Thread " + System.Threading.Thread.CurrentThread.ManagedThreadId + " " + s);
+            _parentForm.LogDebug("Thread " + System.Threading.Thread.CurrentThread.ManagedThreadId + " " + s);
         }
 
         public void RequestStop()
@@ -535,7 +645,10 @@ namespace beParser
         private FileStream _fs;
         private StreamReader _sr;
         private Int64 _linesRead = 0;
-        private bool _fileRotated = false;
+        private bool _isMultiline = false;
+        private StringBuilder _stringBuilder;
+        private Regex _lineStartRegex;
+        private Match _lineStartMatch;
 
         public Producer(frmMain parentForm, String filePath, string fileName)
         {
@@ -543,11 +656,19 @@ namespace beParser
             this._parentForm = parentForm;
             this._filePath = filePath;
             this._fileName = fileName;
+            if (_fileName == "scripts" || _fileName == "remoteexec" || _fileName == "mpeventhandler" || _fileName == "remotecontrol")
+            {
+                this._isMultiline = true;
+                this._stringBuilder = new StringBuilder();
+                // 03.08.2015 18:33:13:
+                this._lineStartRegex = new Regex(@"[0-9]{2}\.[0-9]{2}\.[0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}: ");
+            }
         }
 
         public void DoWork()
         {
-            threadLogDebug("Producer starting for file " + _fileName);
+            ThreadLogDebug("Producer starting for file " + _fileName);
+            bool _fileRotated = false;
 
             while (!_shouldStop)
             {
@@ -564,7 +685,7 @@ namespace beParser
                         currentSize = GetFileSize();
                         if (currentSize < lastSize)
                         {
-                            threadLogDebug("File size reduced, assuming log was rotated");
+                            ThreadLogDebug("File size reduced, assuming log was rotated");
                             _fileRotated = true;
                             _sr.Close();
                             _fs.Close();
@@ -576,10 +697,32 @@ namespace beParser
                                 _linesRead++;
                                 if ((_linesRead % 100) == 0)
                                 {
-                                    threadLogDebug(_fileName + " " + _linesRead + " lines read");
+                                    ThreadLogDebug(_fileName + " " + _linesRead + " lines read");
                                 }
-                                _parentForm.addLineQueueLine(_fileName, line);
-                                //threadLogDebug(line);
+
+                                // files with output on multiple lines require special handling
+                                if (_isMultiline)
+                                {
+                                    _lineStartMatch = _lineStartRegex.Match(line);
+                                    if (_lineStartMatch.Success)
+                                    {
+                                        if (_stringBuilder.Length > 0)
+                                        {
+                                            _parentForm.AddLineQueueLine(_fileName, _stringBuilder.ToString());
+                                        }
+                                        _stringBuilder.Clear();
+                                    }
+                                    _stringBuilder.Append(line);
+                                    _stringBuilder.Replace('\n', ' ');
+                                    _stringBuilder.Replace('\t', ' ');
+                                    _stringBuilder.Replace('\r', ' ');
+                                }
+                                else
+                                {
+                                    _parentForm.AddLineQueueLine(_fileName, line);
+                                }
+
+                                //ThreadLogDebug(line);
                             }
                             else
                             {
@@ -600,7 +743,7 @@ namespace beParser
                     if (_fs != null) { _fs.Close(); }
                 }
             }
-            threadLogDebug("Producer exiting");
+            ThreadLogDebug("Producer exiting");
         }
 
         public Int64 GetFileSize()
@@ -628,59 +771,115 @@ namespace beParser
         private Regex _regex2;
         private Match _match1;
         private Match _match2;
-        private List<frmMain.fileCheck> _fileChecks;
+        private List<frmMain.FileCheck> _fileChecks;
         private Int64 linesRead;
         private string guid;
+        private string uid;
         private string player;
         private string ip;
+        private string date;
         private int slot;
         private string rule;
         private Int32 unixtime = 0;
+        private string evt;
 
         public Consumer(frmMain parentForm, string fileName)
         {
             this._parentForm = parentForm;
             this._fileName = fileName;
-            this._fileChecks = _parentForm.getFileChecks(fileName);
+            this._fileChecks = _parentForm.GetFileChecks(fileName);
         }
 
         public void DoWork()
         {
-            threadLogDebug("Consumer starting for file " + _fileName);
+            ThreadLogDebug("Consumer starting for file " + _fileName);
             string line;
             bool res;
 
             while (!_shouldStop)
             {
-                res = _parentForm.getLineQueueLine(_fileName, out line);
+                res = _parentForm.GetLineQueueLine(_fileName, out line);
                 if (res)
                 {
                     linesRead++;
+                    //ThreadLogDebug("line " + linesRead + " " + line);
 
                     // Special checks
                     if (_fileName == "server_console")
                     {
-                        Regex server_console1 = new Regex(@"BattlEye Server: Player #([0-9]+) (.*) \(([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}):[0-9]+\) connected");
-                        Regex server_console2 = new Regex(@"BattlEye Server: Verified GUID \(([0-9a-z]+)\) of player #([0-9]+) (.*)");
+                        Regex server_console1 = new Regex(@"\d+:\d+:\d+ (?:BattlEye Server: Player #(?<slot>\d+) (?<player>.*?) (?:- GUID: (?<guid>[a-f0-9]{32}) \(unverified\)|\((?<ip>[0-9.]+?):\d+\) connected)|Player (?<player>.*?) (?:kicked off by BattlEye: (?<evt>Admin Ban)|connected \(id=(?<uid>[0-9AX]+)\)\.|(?<evt>disconnected)\.|kicked off by BattlEye: (?<evt>Global Ban) #[a-f0-9]+)|Player #(?<slot>\d+) (?<player>.*?) \([a-f0-9]{32}\) has been kicked by BattlEye: (?<evt>Invalid GUID)|BattlEye Server: \((?<evt>.*?)\) (?<player>.*?) *: (?<msg>.*)) *$");
                         _match1 = server_console1.Match(line);
-                        _match2 = server_console2.Match(line);
 
                         if (_match1.Success)
                         {
-                            // slot player ip
-                            try
-                            {
-                                slot = Convert.ToInt16(_match1.Groups[1].Value);
-                            }
-                            catch (Exception)
-                            {
-                                slot = -1;
-                            }
-                            player = _match1.Groups[2].Value;
-                            ip = _match1.Groups[3].Value;
+                            Group guidExists = _match1.Groups["guid"];
+                            Group uidExists = _match1.Groups["uid"];
+                            Group ipExists = _match1.Groups["ip"];
+                            Group evtExists = _match1.Groups["evt"];
 
-                            _parentForm.slotToIPAdd(slot, ip);
-                            _parentForm.playerToSlotAdd(player, slot);
+                            if (guidExists.Success)
+                            {
+                                guid = guidExists.Value;
+                                player = _match1.Groups["player"].Value;
+                                slot = Convert.ToInt16(_match1.Groups["slot"].Value);
+                                _parentForm.PlayerToGuidAdd(_match1.Groups["player"].Value, guid);
+                                _parentForm.PlayerToSlotAdd(_match1.Groups["player"].Value, slot);
+                                ThreadLogOutput(_parentForm.GetDateString() + " Player/GUID,Slot '" + player + "'=>" + guid + "," + slot);
+                            }
+                            else if (uidExists.Success)
+                            {
+                                player = _match1.Groups["player"].Value;
+                                uid = uidExists.Value;
+                                _parentForm.UidToPlayerAdd(uid, _match1.Groups["player"].Value);
+                                ThreadLogOutput(_parentForm.GetDateString() + " UID/Player " + uid + "=>" + player);
+                            }
+                            else if (ipExists.Success)
+                            {
+                                slot = Convert.ToInt16(_match1.Groups["slot"].Value);
+                                ip = _match1.Groups["ip"].Value;
+                                _parentForm.SlotToIPAdd(slot, ip);
+                            }
+                            else if (evtExists.Success)
+                            {
+                                evt = _match1.Groups["evt"].Value;
+                                switch (evt)
+                                {
+                                    case "disconnected":
+                                        player = _match1.Groups["player"].Value;
+                                        slot = _parentForm.PlayerToSlotGet(player);
+                                        _parentForm.playerToSlot.Remove(player);
+                                        if (slot > 0) { _parentForm.slotToIP.Remove(slot); }
+                                        ThreadLogOutput(_parentForm.GetDateString() + " Player disconnected '" + player + "', deleting slot reference");
+                                        break;
+                                    case "Global Ban":
+                                        slot = _parentForm.PlayerToSlotGet(player);
+                                        if (slot == -1) { slot = 999; }
+                                        ip = _parentForm.SlotToIPGet(slot);
+                                        if (ip == null) { ip = "127.0.0.1"; }
+                                        _parentForm.Ban(null, ip, null, -1, null, null, null);
+                                        break;
+                                    case "Invalid GUID":
+                                        if (_match1.Groups["slot"].Value != null)
+                                        {
+                                            slot = Convert.ToInt16(_match1.Groups["slot"].Value);
+                                        }
+                                        else
+                                        {
+                                            slot = 999;
+                                        }
+                                        ip = _parentForm.SlotToIPGet(slot);
+                                        if (ip == null) { ip = "127.0.0.1"; }
+                                        _parentForm.Ban(null, ip, null, -1, null, null, null);
+                                        break;
+                                    case "Admin Ban":
+                                        player = _match1.Groups["player"].Value;
+                                        guid = _parentForm.PlayerToGuidGet(player);
+                                        ThreadLogOutput(_parentForm.GetDateString() + " Ban with no reason " + guid + ", please unban");
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            }
                         }
                         else
                         {
@@ -688,36 +887,9 @@ namespace beParser
                             player = null;
                             ip = null;
                         }
-
-                        if (_match2.Success)
-                        {
-                            // guid slot player
-                            guid = _match2.Groups[1].Value;
-                            try
-                            {
-                                slot = Convert.ToInt16(_match2.Groups[2].Value);
-                            }
-                            catch (Exception)
-                            {
-                                slot = -1;
-                            }
-                            player = _match2.Groups[3].Value;
-
-                            if (_parentForm.newPlayer(player, guid))
-                            {
-                                threadLogOutput(_parentForm.getDateString() + " GUID seen '" + player + "'=>" + guid);
-                            }
-
-                            _parentForm.playerToGuidAdd(player, guid);
-                            _parentForm.playerToSlotAdd(player, slot);
-                        }
                     }
-
-                    if (_fileName == "publicvariable")
+                    else if (_fileName == "publicvariable")
                     {
-                        // 04.08.2015 00:47:33: Kerbo (192.168.76.140:2304) 3989bfdc6b155c5fcededce80cd04710 - #11 "PVDZ_send" = [<NULL-object>,"dayzSetDate",[<NULL-object>]]
-                        // 04.08.2015 00:47:56: Kerbo (192.168.76.140:2304) 3989bfdc6b155c5fcededce80cd04710 - #9 "PVDZ_plr_LoginRecord" = ["76561198094288543","2368",0]
-                        // 03.08.2015 19:35:22: Nightmare (187.233.88.182:23204) b4e065d95d7ceb35128b2c9f5b71194a - #9 "PVDZ_plr_LoginRecord" = ["76561198075755817","3221",0]
                         Regex publicvariable1 = new Regex(@"([0-9]+\.[0-9]+\.[0-9]+ [0-9]+:[0-9]+:[0-9]+): (.*) \(([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}):[0-9]+\) ([0-9a-z]{32}) - ");
                         _match1 = publicvariable1.Match(line);
                         if (_match1.Success)
@@ -737,12 +909,12 @@ namespace beParser
                             ip = _match1.Groups[3].Value;
                             guid = _match1.Groups[4].Value;
 
-                            if (_parentForm.newPlayer(player, guid))
+                            if (_parentForm.NewPlayer(player, guid))
                             {
-                                threadLogOutput(_match1.Groups[1].Value + " GUID seen '" + player + "'=>" + guid);
+                                ThreadLogOutput(_match1.Groups[1].Value + " GUID seen '" + player + "'=>" + guid);
                             }
 
-                            _parentForm.playerToGuidAdd(player, guid);
+                            _parentForm.PlayerToGuidAdd(player, guid);
                         }
                         else
                         {
@@ -751,60 +923,138 @@ namespace beParser
                             guid = null;
                         }
                     }
-
-                    for (int i = 0; i < _fileChecks.Count; i++)
+                    else // other logs
                     {
-                        frmMain.fileCheck fileCheck = _fileChecks[i];
-                        rule = "BP-" + _fileName + "-" + i;
-
-                        if (fileCheck.regex_match != null)
+                        Regex reg = new Regex(@"(?<date>(?<D>\d+)\.(?<M>\d+)\.(?<Y>\d+) (?<h>\d+):(?<m>\d+):(?<s>\d+)): (?<player>.*?) ?\((?<ip>[0-9.]{7,15}):[0-9]{1,5}\) (?<guid>(?:-|[a-f0-9]{32})) - ");
+                        _match1 = reg.Match(line);
+                        if (_match1.Success)
                         {
-                            _regex1 = new Regex(fileCheck.regex_match);
-                            _match1 = _regex1.Match(line);
-                        }
+                            Group guidExists = _match1.Groups["guid"];
+                            Group playerExists = _match1.Groups["player"];
+                            Group dateExists = _match1.Groups["date"];
+                            Group ipExists = _match1.Groups["ip"];
 
-                        if (fileCheck.regex_nomatch != null)
-                        {
-                            _regex2 = new Regex(fileCheck.regex_nomatch);
-                            _match2 = _regex2.Match(line);
-                        }
-
-                        // def, def
-                        if (
-                            ((fileCheck.regex_match != null) && _match1.Success) && ((fileCheck.regex_nomatch != null) && !_match2.Success) ||
-                            ((fileCheck.regex_match != null) && _match1.Success) && (fileCheck.regex_nomatch == null) ||
-                            ((fileCheck.regex_match == null) && ((fileCheck.regex_nomatch != null) && !_match2.Success))
-                            )
-                        {
-                            if ((guid != null) && (guid != ""))
+                            if (guidExists.Success)
                             {
-                                if(unixtime == 0)
-                                {
-                                    unixtime = (Int32)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
-                                }
-                                string key = rule + guid + Convert.ToString(Convert.ToDecimal((unixtime / fileCheck.seconds)));
-
-                                _parentForm.updateRuleCount(key);
-                                int currentCount = _parentForm.getRuleCount(key);
-
-                                threadLogOutput(currentCount + "/" + fileCheck.count + ":" + _fileName + ":" + line);
-                                if (currentCount == fileCheck.count)
-                                {
-                                    threadLogRcon("addBan " + guid + " -1 " + rule + " " + _parentForm.getDateString());
-                                    _parentForm.ruleCounts.Remove(key);
-                                }
-                                else
-                                {
-                                }
+                                guid = guidExists.Value;
                             }
 
-                        }
-                        // undef, undef
-                        else
-                        {
+                            if (playerExists.Success)
+                            {
+                                player = playerExists.Value;
+                            }
+
+                            if (dateExists.Success)
+                            {
+                                date = _match1.Groups["date"].Value;
+                            }
+                            else
+                            {
+                                date = _parentForm.GetDateString();
+                            }
+
+                            if(ipExists.Success)
+                            {
+                                ip = ipExists.Value;
+                            }
+                            else
+                            {
+                                ip = "127.0.0.1";
+                            }
+
+                            if (guidExists.Success && playerExists.Success)
+                            {
+                                if (_parentForm.NewPlayer(player, guid))
+                                {
+                                    _parentForm.PlayerToGuidAdd(player, guid);
+                                    ThreadLogOutput(date + " GUID seen '" + player + "'=>" + guid);
+                                }
+
+                            }
                         }
                     }
 
+                    for (int i = 0; i < _fileChecks.Count; i++)
+                    {
+                        rule = _fileName + "-" + (i + 1);
+
+
+                        if (_fileChecks[i].regex_match != null)
+                        {
+                            _regex1 = new Regex(_fileChecks[i].regex_match, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+                            _match1 = _regex1.Match(line);
+                        }
+                        else
+                        {
+                            _regex1 = null;
+                            _match1 = null;
+                        }
+
+                        if (_fileChecks[i].regex_nomatch != null)
+                        {
+                            _regex2 = new Regex(_fileChecks[i].regex_nomatch, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+                            _match2 = _regex2.Match(line);
+                        }
+                        else
+                        {
+                            _regex2 = null;
+                            _match2 = null;
+                        }
+
+                        if (
+                            ((_fileChecks[i].regex_match != null) && _match1.Success) && ((_fileChecks[i].regex_nomatch != null) && !_match2.Success) ||
+                            ((_fileChecks[i].regex_match != null) && _match1.Success) && (_fileChecks[i].regex_nomatch == null) ||
+                            ((_fileChecks[i].regex_match == null) && ((_fileChecks[i].regex_nomatch != null) && !_match2.Success))
+                            )
+                        {
+
+                            if ((guid != null) && (guid != ""))
+                            {
+                                // no count
+                                if (_fileChecks[i].seconds == 0)
+                                {
+                                    _parentForm.Ban(guid, ip, player, -1, date, rule, null);
+
+                                    // Remote Exec hack follow up
+                                    // TODO
+                                    if (_fileChecks[i].seconds == -1)
+                                    {
+                                        if (_fileName == "scripts")
+                                        {
+
+                                        }
+                                        else if (_fileName == "arma2oaserver")
+                                        {
+
+                                        }
+                                        else
+                                        {
+                                            // PV
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    if (unixtime == 0)
+                                    {
+                                        unixtime = (Int32)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
+                                    }
+
+                                    string key = rule + guid + Convert.ToString(Convert.ToDecimal((unixtime / _fileChecks[i].seconds)));
+
+                                    _parentForm.UpdateRuleCount(key);
+                                    int currentCount = _parentForm.GetRuleCount(key);
+
+                                    ThreadLogOutput(currentCount + "/" + _fileChecks[i].count + ":" + _fileName + ":" + line);
+                                    if (currentCount == _fileChecks[i].count)
+                                    {
+                                        _parentForm.Ban(guid, null, null, -1, date, rule, null);
+                                        _parentForm.ruleCounts.Remove(key);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 else
                 {
@@ -813,17 +1063,17 @@ namespace beParser
                 }
             }
 
-            threadLogDebug("Consumer exiting");
+            ThreadLogDebug("Consumer exiting");
         }
 
-        public void threadLogOutput(String s)
+        public void ThreadLogOutput(String s)
         {
-            _parentForm.logOutput(s);
+            _parentForm.LogOutput(s);
         }
 
-        public void threadLogRcon(String s)
+        public void ThreadLogRcon(String s)
         {
-            _parentForm.logRcon(s);
+            _parentForm.LogRcon(s);
         }
     }
 }
