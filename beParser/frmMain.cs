@@ -16,6 +16,7 @@ namespace beParser
     public partial class frmMain : Form
     {
         //private
+        private bool started = false;
         private List<Producer> producerObjects = new List<Producer>();
         private List<Consumer> consumerObjects = new List<Consumer>();
         private List<Thread> workerThreads = new List<Thread>();
@@ -73,6 +74,7 @@ namespace beParser
 
         private void DeserializeFileCheckData(string RawData)
         {
+            fileChecks.Clear();
             fileChecks = new Dictionary<string, List<FileCheck>>();
             XmlSerializer xs = new XmlSerializer(typeof(List<FileCheckData>));
             StringReader sr = new StringReader(RawData);
@@ -120,57 +122,23 @@ namespace beParser
 
         private void fmrMain_Load(object sender, EventArgs e)
         {
+            // TODO
+            // read options
             Run();
         }
 
-        private void Run()
+       private void Start()
         {
-            // create and start UI threads
-            Thread tDebug = new Thread(DoDebugLog);
-            tDebug.IsBackground = true;
-            tDebug.Start();
-
-            Thread tOutput = new Thread(DoOutputLog);
-            tOutput.IsBackground = true;
-            tOutput.Start();
-
-            Thread tRcon = new Thread(DoRconLog);
-            tRcon.IsBackground = true;
-            tRcon.Start();
+            // clear things
+            fileChecks.Clear();
+            lineQueues.Clear();
+            producerObjects.Clear();
+            consumerObjects.Clear();
+            workerThreads.Clear();
+            ruleCounts.Clear();
 
             // Load files to monitor from fileChecks.xml
             LoadFileChecks();
-
-            /*
-            // TODO: move this to config file
-            fileChecks.Add("server_console", new List<FileCheck>());
-
-            fileChecks.Add("publicvariable", new List<FileCheck>());
-            fileChecks["publicvariable"].Add(new FileCheck(1, 0, "rmovein\"", null, "kickbyguid {0} BP-{1} {2} looting too fast {3}"));
-            fileChecks["publicvariable"].Add(new FileCheck(1, 0, "\"remExField\" = .*?(?:usecEpi|setDamage|markerType|setVehicleInit|%|usecMorphine|r_player_blood|BIS_Effects_Burn|fnc_usec_damage|bowen|preproces)"));
-            fileChecks["publicvariable"].Add(new FileCheck(1, 0, "(?:dayzJizz|dwarden)"));
-            fileChecks["publicvariable"].Add(new FileCheck(1, 0, "83,99,114,105,112,116"));
-            fileChecks["publicvariable"].Add(new FileCheck(-1, 10000, "wrong side", @"""PVDZ_sec_atp"" = \[""wrong side"",<NULL-object>\]"));
-            fileChecks["publicvariable"].Add(new FileCheck(1, 0, "Plants texture hack", null, "kickbyguid $guid;!sleep 1;addban $guid 2880 Plant texture hack for $player $date, 2 day ban"));
-            fileChecks["publicvariable"].Add(new FileCheck(75, 300, "time shift", null, "kickbyguid $guid You are time shifting/lagging, fix your internet."));
-            */
-
-            /*
-            // TEMP WRITE
-            Console.WriteLine("Starting serialization");
-            try
-            {
-                StreamWriter sw = new StreamWriter("fileChecks.xml");
-                sw.Write(SerializeFileCheckData());
-                sw.Close();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Error saving to XML: " + ex.Message);
-            }
-            Console.WriteLine("Done with serialization");
-            // END TEMP WRITE
-            */
 
             // create and start producer threads
             foreach (String file in fileChecks.Keys)
@@ -209,6 +177,75 @@ namespace beParser
                 t.IsBackground = true;
                 t.Start();
             }
+        }
+
+        private void Stop()
+        {
+            LogDebug("Stopping producer and consumer threads");
+
+            // Check if any worker threads are running
+            int threadsRunning = 0;
+            foreach (Thread t in workerThreads)
+            {
+                if (!t.Join(0))
+                {
+                    threadsRunning++;
+                }
+            }
+
+            // if worker threads are running tell them to stop and then wait for them
+            if (threadsRunning > 0)
+            {
+                foreach (Producer w in producerObjects)
+                {
+                    w.RequestStop();
+                }
+                foreach (Consumer c in consumerObjects)
+                {
+                    c.RequestStop();
+                }
+                var timer = new System.Timers.Timer();
+                timer.AutoReset = false;
+                timer.SynchronizingObject = this;
+                timer.Interval = 1000;
+                timer.Elapsed +=
+                    (sender, args) =>
+                    {
+                        threadsRunning = 0;
+                        foreach (Thread t in workerThreads)
+                        {
+                            if (!t.Join(0))
+                            {
+                                threadsRunning++;
+                            }
+                        }
+                        if (threadsRunning == 0)
+                        {
+                            return;
+                        }
+                        else
+                        {
+                            timer.Start();
+                        }
+                    };
+                timer.Start();
+            }
+        }
+
+        private void Run()
+        {
+            // create and start UI threads
+            Thread tDebug = new Thread(DoDebugLog);
+            tDebug.IsBackground = true;
+            tDebug.Start();
+
+            Thread tOutput = new Thread(DoOutputLog);
+            tOutput.IsBackground = true;
+            tOutput.Start();
+
+            Thread tRcon = new Thread(DoRconLog);
+            tRcon.IsBackground = true;
+            tRcon.Start();
         }
 
         private void LoadFileChecks()
@@ -350,6 +387,8 @@ namespace beParser
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            LogDebug("Stopping producer and consumer threads");
+
             // Check if any worker threads are running
             int threadsRunning = 0;
             foreach (Thread t in workerThreads)
@@ -360,7 +399,7 @@ namespace beParser
                 }
             }
 
-            // if worker threads are running tell them to stop and wait
+            // if worker threads are running tell them to stop and then wait for them
             if (threadsRunning > 0)
             {
                 e.Cancel = true;
@@ -398,7 +437,6 @@ namespace beParser
                     };
                 timer.Start();
             }
-
         }
 
         internal void LogDebug(String s)
@@ -426,9 +464,22 @@ namespace beParser
             return GetDateString() + " " + s;
         }
 
-        private void btnRCON_Click(object sender, EventArgs e)
+        private void btnStartStop_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("Not yet implemented");
+            btnStartStop.Enabled = false;
+            if (started)
+            {
+                Stop();
+                started = false;
+                btnStartStop.Text = "Start";
+            }
+            else
+            {
+                Start();
+                started = true;
+                btnStartStop.Text = "Stop";
+            }
+            btnStartStop.Enabled = true;
         }
 
         internal bool GetLineQueueLine(string fileName, out string line)
@@ -953,7 +1004,7 @@ namespace beParser
                                 date = _parentForm.GetDateString();
                             }
 
-                            if(ipExists.Success)
+                            if (ipExists.Success)
                             {
                                 ip = ipExists.Value;
                             }
