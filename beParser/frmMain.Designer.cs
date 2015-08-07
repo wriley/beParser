@@ -43,7 +43,8 @@
             this.tableLayoutPanel3 = new System.Windows.Forms.TableLayoutPanel();
             this.flowLayoutPanel1 = new System.Windows.Forms.FlowLayoutPanel();
             this.cbRewindOn = new System.Windows.Forms.CheckBox();
-            this.rbLinesQueued = new System.Windows.Forms.RadioButton();
+            this.label1 = new System.Windows.Forms.Label();
+            this.lblLinesQueued = new System.Windows.Forms.Label();
             this.menuStrip1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
             this.tableLayoutPanel3.SuspendLayout();
@@ -189,7 +190,8 @@
             this.flowLayoutPanel1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
             this.flowLayoutPanel1.Controls.Add(this.btnStartStop);
             this.flowLayoutPanel1.Controls.Add(this.cbRewindOn);
-            this.flowLayoutPanel1.Controls.Add(this.rbLinesQueued);
+            this.flowLayoutPanel1.Controls.Add(this.label1);
+            this.flowLayoutPanel1.Controls.Add(this.lblLinesQueued);
             this.flowLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.flowLayoutPanel1.Location = new System.Drawing.Point(3, 3);
             this.flowLayoutPanel1.Name = "flowLayoutPanel1";
@@ -207,15 +209,23 @@
             this.cbRewindOn.UseVisualStyleBackColor = true;
             this.cbRewindOn.CheckedChanged += new System.EventHandler(this.cbRewindOn_CheckedChanged);
             // 
-            // rbLinesQueued
+            // label1
             // 
-            this.rbLinesQueued.AutoSize = true;
-            this.rbLinesQueued.Location = new System.Drawing.Point(152, 3);
-            this.rbLinesQueued.Name = "rbLinesQueued";
-            this.rbLinesQueued.Size = new System.Drawing.Size(48, 17);
-            this.rbLinesQueued.TabIndex = 9;
-            this.rbLinesQueued.Text = "Busy";
-            this.rbLinesQueued.UseVisualStyleBackColor = true;
+            this.label1.AutoSize = true;
+            this.label1.Location = new System.Drawing.Point(152, 0);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(97, 13);
+            this.label1.TabIndex = 10;
+            this.label1.Text = "Log Lines Queued:";
+            // 
+            // lblLinesQueued
+            // 
+            this.lblLinesQueued.AutoSize = true;
+            this.lblLinesQueued.Location = new System.Drawing.Point(255, 0);
+            this.lblLinesQueued.Name = "lblLinesQueued";
+            this.lblLinesQueued.Size = new System.Drawing.Size(13, 13);
+            this.lblLinesQueued.TabIndex = 11;
+            this.lblLinesQueued.Text = "0";
             // 
             // frmMain
             // 
@@ -254,9 +264,10 @@
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel3;
         private System.Windows.Forms.FlowLayoutPanel flowLayoutPanel1;
         private System.Windows.Forms.CheckBox cbRewindOn;
-        private System.Windows.Forms.RadioButton rbLinesQueued;
         private System.Windows.Forms.ToolStripMenuItem optionsToolStripMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator1;
+        private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.Label lblLinesQueued;
     }
 }
 

@@ -373,21 +373,21 @@ namespace beParser
             }
         }
 
-        delegate void UpdateLinesQueuedCallback(bool c);
-        private void UpdateLinesQueued(bool c)
+        delegate void UpdateLinesQueuedCallback(int n);
+        private void UpdateLinesQueued(int n)
         {
             try
             {
-                if (this.rbLinesQueued.InvokeRequired)
+                if (this.lblLinesQueued.InvokeRequired)
                 {
                     UpdateLinesQueuedCallback d = new UpdateLinesQueuedCallback(UpdateLinesQueued);
 
-                    Invoke(d, new object[] { c });
+                    Invoke(d, new object[] { n });
 
                 }
                 else
                 {
-                    rbLinesQueued.Checked = c;
+                    lblLinesQueued.Text = n.ToString();
                 }
             }
             catch (Exception ex)
@@ -532,16 +532,9 @@ namespace beParser
                 {
                     linesCount += lineQueues[lq.Key].Count;
                 }
-                if (linesCount > 0)
-                {
-                    UpdateLinesQueued(true);
-                }
-                else
-                {
-                    UpdateLinesQueued(false);
-                }
-                LogDebug("linesQueued: " + linesCount);
-                Thread.Sleep(1000);
+                UpdateLinesQueued(linesCount);
+                //LogDebug("linesQueued: " + linesCount);
+                Thread.Sleep(200);
             }
         }
 
@@ -588,8 +581,15 @@ namespace beParser
 
         private void optionsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            frmOptions frmOptions = new frmOptions(this);
-            frmOptions.Show(this);
+            if (started)
+            {
+                MessageBox.Show("Please stop before changing options");
+            }
+            else
+            {
+                frmOptions frmOptions = new frmOptions(this);
+                frmOptions.Show(this);
+            }
         }
 
         private void cbRewindOn_CheckedChanged(object sender, EventArgs e)
