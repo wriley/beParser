@@ -122,6 +122,7 @@ namespace beParser
             workerThreads.Clear();
             ruleCounts.Clear();
 
+            LogDebug("Loading fileChecks.xml");
             // Load files to monitor from fileChecks.xml
             if (LoadFileChecks())
             {
@@ -155,6 +156,7 @@ namespace beParser
                     t.Start();
                 }
 
+                LogDebug("Starting producer and consumer threads");
                 // create and start consumer threads
                 foreach (var lineQueue in lineQueues)
                 {
@@ -821,7 +823,7 @@ namespace beParser
 
     }
 
-    #region Thread definitions
+    #region Thread classes
 
     public class GenericWorkerThread
     {
@@ -867,6 +869,8 @@ namespace beParser
         private StringBuilder _stringBuilder;
         private Regex _lineStartRegex;
         private Match _lineStartMatch;
+        private FileSystemWatcher _watcher;
+        bool _fileRotated = false;
 
         public Producer(frmMain parentForm, String filePath, string fileName)
         {
@@ -883,10 +887,23 @@ namespace beParser
             }
         }
 
+        private void OnChanged(object source, FileSystemEventArgs e)
+        {
+            _fileRotated = true;
+        }
+
         public void DoWork()
         {
-            ThreadLogDebug("Producer starting for file " + _fileName);
-            bool _fileRotated = false;
+            //ThreadLogDebug("Producer starting for file " + _fileName);
+
+            _watcher = new FileSystemWatcher();
+            _watcher.Path = Path.GetDirectoryName(_filePath);
+            _watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size;
+            _watcher.Filter = Path.GetFileName(_filePath);
+            _watcher.Deleted += new FileSystemEventHandler(OnChanged);
+            _watcher.EnableRaisingEvents = true;
+
+            Thread.Sleep(1000);
 
             while (!_shouldStop)
             {
@@ -894,58 +911,59 @@ namespace beParser
                 {
                     _fs = File.Open(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                     _sr = new StreamReader(_fs);
-                    Int64 lastSize = GetFileSize();
+                    Int64 fileSize = GetFileSize();
                     if (!_parentForm.rewindOn)
                     {
-                        _sr.BaseStream.Seek(lastSize, SeekOrigin.Begin);
+                        _sr.BaseStream.Seek(fileSize, SeekOrigin.Begin);
                     }
                     string line;
-                    Int64 currentSize;
+                    ThreadLogDebug(Path.GetFileName(_filePath) + " is now open");
                     while (!_shouldStop && !_fileRotated)
                     {
-                        currentSize = GetFileSize();
-                        if (currentSize < lastSize)
+                        if ((line = _sr.ReadLine()) != null)
                         {
-                            ThreadLogDebug("File size reduced, assuming log was rotated");
-                            _fileRotated = true;
-                            _sr.Close();
-                            _fs.Close();
-                        }
-                        else
-                        {
-                            if ((line = _sr.ReadLine()) != null)
+                            // files with output on multiple lines require special handling
+                            // combine all lines here
+                            if (_isMultiline)
                             {
-                                // files with output on multiple lines require special handling
-                                if (_isMultiline)
+                                _lineStartMatch = _lineStartRegex.Match(line);
+                                // start of a line (date time string)
+                                if (_lineStartMatch.Success)
                                 {
-                                    _lineStartMatch = _lineStartRegex.Match(line);
-                                    if (_lineStartMatch.Success)
+                                    if (_stringBuilder.Length > 0)
                                     {
-                                        if (_stringBuilder.Length > 0)
-                                        {
-                                            _parentForm.AddLineQueueLine(_fileName, _stringBuilder.ToString());
-                                        }
-                                        _stringBuilder.Clear();
+                                        // there's a previous line so add that
+                                        _parentForm.AddLineQueueLine(_fileName, _stringBuilder.ToString());
                                     }
-                                    _stringBuilder.Append(line);
-                                    _stringBuilder.Replace('\n', ' ');
-                                    _stringBuilder.Replace('\t', ' ');
-                                    _stringBuilder.Replace('\r', ' ');
+                                    // start over
+                                    _stringBuilder.Clear();
                                 }
-                                else
-                                {
-                                    _parentForm.AddLineQueueLine(_fileName, line);
-                                }
-
-                                //ThreadLogDebug(line);
+                                // append the line and replace newlines/tabs with space
+                                _stringBuilder.Append(line);
+                                _stringBuilder.Replace('\n', ' ');
+                                _stringBuilder.Replace('\t', ' ');
+                                _stringBuilder.Replace('\r', ' ');
                             }
                             else
                             {
-                                // couldn't read a line so wait nicely
-                                SpinAndWait(1000);
+                                // not multiline so just add it
+                                _parentForm.AddLineQueueLine(_fileName, line);
                             }
-                            lastSize = currentSize;
+
+                            //ThreadLogDebug(line);
                         }
+                        else
+                        {
+                            // couldn't read a line, wait patiently
+                            SpinAndWait(1000);
+                        }
+                    }
+                    if(_fileRotated)
+                    {
+                        ThreadLogDebug(Path.GetFileName(_filePath) + " was rotated");
+                        if (_sr != null) { _sr.Close(); }
+                        if (_fs != null) { _fs.Close(); }
+                        _fileRotated = false;
                     }
                 }
                 catch (Exception)
@@ -959,7 +977,7 @@ namespace beParser
                     if (_fs != null) { _fs.Close(); }
                 }
             }
-            ThreadLogDebug("Producer exiting");
+            //ThreadLogDebug("Producer exiting");
         }
 
         public Int64 GetFileSize()
@@ -1015,7 +1033,7 @@ namespace beParser
 
         public void DoWork()
         {
-            ThreadLogDebug("Consumer starting for file " + _fileName);
+            //ThreadLogDebug("Consumer starting for file " + _fileName);
             string line;
             bool res;
 
@@ -1348,7 +1366,7 @@ namespace beParser
                     SpinAndWait(1000);
                 }
             }
-            ThreadLogDebug("Consumer exiting");
+            //ThreadLogDebug("Consumer exiting");
         }
 
         public void ThreadLogOutput(String s)
