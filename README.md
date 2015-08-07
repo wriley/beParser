@@ -14,3 +14,8 @@ Note: This project is incomplete
 # 3 RCON
 * Commands that would be sent to RCON if that functionality existed (TODO)
 * Can be copy/pasted to rcon.pl
+
+# Installation
+* Create a folder and copy beParser.exe and fileChecks.xml there
+* Run beParser.exe
+* Set your BattlEye path (File->Options)
