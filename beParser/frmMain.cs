@@ -678,6 +678,17 @@ namespace beParser
                 }
             }
         }
+
+        private void exitToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Application.Exit();
+        }
+
+        private void aboutToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            frmAboutBox frmAboutBox = new frmAboutBox();
+            frmAboutBox.ShowDialog(this);
+        }
     }
 
     public class GenericWorkerThread
