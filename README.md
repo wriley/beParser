@@ -16,6 +16,6 @@ Note: This project is incomplete
 * Can be copy/pasted to rcon.pl
 
 # Installation
-* Create a folder and copy beParser.exe and fileChecks.xml there
+* Create a folder and copy [beParser.exe](Install/beParser.exe?raw=true) and [fileChecks.xml](Install/fileChecks.xml?raw=true) there
 * Run beParser.exe
 * Set your BattlEye path (File->Options)
