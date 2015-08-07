@@ -29,6 +29,7 @@ namespace beParser
         //string basePath = "testlogs//BattlEye";
 
         // public
+        public bool rewind = false;
         public Dictionary<string, string> playerToGuid = new Dictionary<string, string>();
         public Dictionary<string, string> uidToPlayer = new Dictionary<string, string>();
         public Dictionary<int, string> slotToIP = new Dictionary<int, string>();
@@ -127,7 +128,7 @@ namespace beParser
             Run();
         }
 
-       private void Start()
+        private void Start()
         {
             // clear things
             fileChecks.Clear();
@@ -139,6 +140,9 @@ namespace beParser
 
             // Load files to monitor from fileChecks.xml
             LoadFileChecks();
+
+            // check for rewind option (read files from beginning)
+            rewind = cbRewind.Checked;
 
             // create and start producer threads
             foreach (String file in fileChecks.Keys)
@@ -257,7 +261,7 @@ namespace beParser
             }
             catch (Exception ex)
             {
-                LogDebug("Error loading fileChecks.xml: " + ex.Message);
+                MessageBox.Show("Error loading fileChecks.xml: " + ex.Message);
             }
         }
 
@@ -467,6 +471,8 @@ namespace beParser
         private void btnStartStop_Click(object sender, EventArgs e)
         {
             btnStartStop.Enabled = false;
+            cbRewind.Enabled = false;
+
             if (started)
             {
                 Stop();
@@ -479,7 +485,9 @@ namespace beParser
                 started = true;
                 btnStartStop.Text = "Stop";
             }
+
             btnStartStop.Enabled = true;
+            cbRewind.Enabled = true;
         }
 
         internal bool GetLineQueueLine(string fileName, out string line)
@@ -635,20 +643,34 @@ namespace beParser
 
         internal void Ban(string guid = null, string ip = null, string player = null, int slot = -1, string date = null, string rule = null, string action = null)
         {
+            /*
+               0 - guid
+               1 - ip
+               2 - player
+               3 - date
+               4 - rule
+           */
+
+            // TODO: make rcon connection and commands available like rcon.pl
+
+            String[] cmdArgs = new String[] { guid, ip, player, date, rule };
+
             if (guid != null || slot != 999 || player != null)
             {
                 if (action == null && guid != null && !alreadyBannedGuids.Contains(guid))
                 {
                     alreadyBannedGuids.Add(guid);
-                    // kickbyguid $guid;!sleep 1;addban $guid 0 BP-$rule $player $date;!sleep 1;addban $ip 0 BP-$rule $player $date
-                    string str = String.Format("kickbyguid {0};!sleep 1;addban {0} 0 BP-{1} {2} {3};!sleep 1;addban {4} 0 BP-{1} {2} {3}", guid, rule, player, date, ip);
-                    LogOutput(String.Format("{0} Trigger for GUID:{1} NAME:\"{2}\" SOURCE:{3} command={4}", date, guid, player, rule, str));
-                    LogRcon(str);
+                    string cmd = String.Format("kickbyguid {0};!sleep 1;addban {0} 0 BP-{4} {2} {3};!sleep 1;addban {1} 0 BP-{4} {2} {3}", cmdArgs);
+                    LogRcon(cmd);
+
+                    LogOutput(String.Format("{0} Trigger for GUID:{1} NAME:\"{2}\" SOURCE:{3} command={4}", date, guid, player, rule, cmd));
                 }
                 else if (action != null)
                 {
-                    LogOutput(String.Format("{0} Trigger for GUID:{1} NAME:\"{2}\" SOURCE:{3} command={4}", date, guid, player, rule, action));
-                    LogRcon("ACTION: " + action);
+                    string cmd = String.Format(action, cmdArgs);
+                    LogRcon(cmd);
+
+                    LogOutput(String.Format("{0} Trigger for GUID:{1} NAME:\"{2}\" SOURCE:{3} command={4}", date, guid, player, rule, cmd));
                 }
                 else
                 {
@@ -728,7 +750,10 @@ namespace beParser
                     _fs = File.Open(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                     _sr = new StreamReader(_fs);
                     Int64 lastSize = GetFileSize();
-                    //sr.BaseStream.Seek(lastSize, SeekOrigin.Begin);
+                    if (!_parentForm.rewind)
+                    {
+                        _sr.BaseStream.Seek(lastSize, SeekOrigin.Begin);
+                    }
                     string line;
                     Int64 currentSize;
                     while (!_shouldStop && !_fileRotated)
@@ -1025,6 +1050,8 @@ namespace beParser
                         }
                     }
 
+                    // regex file checks
+
                     for (int i = 0; i < _fileChecks.Count; i++)
                     {
                         rule = _fileName + "-" + (i + 1);
@@ -1061,14 +1088,13 @@ namespace beParser
 
                             if ((guid != null) && (guid != ""))
                             {
-                                // no count
                                 if (_fileChecks[i].seconds == 0)
                                 {
-                                    _parentForm.Ban(guid, ip, player, -1, date, rule, null);
+                                    _parentForm.Ban(guid, ip, player, -1, date, rule, _fileChecks[i].command);
 
                                     // Remote Exec hack follow up
                                     // TODO
-                                    if (_fileChecks[i].seconds == -1)
+                                    if (_fileChecks[i].count == -1)
                                     {
                                         if (_fileName == "scripts")
                                         {
@@ -1099,7 +1125,7 @@ namespace beParser
                                     ThreadLogOutput(currentCount + "/" + _fileChecks[i].count + ":" + _fileName + ":" + line);
                                     if (currentCount == _fileChecks[i].count)
                                     {
-                                        _parentForm.Ban(guid, null, null, -1, date, rule, null);
+                                        _parentForm.Ban(guid, null, null, -1, date, rule, _fileChecks[i].command);
                                         _parentForm.ruleCounts.Remove(key);
                                     }
                                 }
