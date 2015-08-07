@@ -25,7 +25,7 @@ namespace beParser.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("c:\\arma2oa\\dayz_2\\BattlEye")]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
         public string basePath {
             get {
                 return ((string)(this["basePath"]));
@@ -37,7 +37,6 @@ namespace beParser.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("True")]
         public bool rewindOn {
             get {
                 return ((bool)(this["rewindOn"]));

@@ -112,6 +112,7 @@ namespace beParser
         {
             if (basePath.Length == 0 || !Directory.Exists(basePath))
             {
+                MessageBox.Show("You need to set the correct path to your BattlEye folder\r\nFile->Options");
                 return false;
             }
             // clear things

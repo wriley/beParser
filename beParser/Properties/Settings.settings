@@ -3,10 +3,10 @@
   <Profiles />
   <Settings>
     <Setting Name="basePath" Type="System.String" Scope="User">
-      <Value Profile="(Default)">c:\arma2oa\dayz_2\BattlEye</Value>
+      <Value Profile="(Default)" />
     </Setting>
     <Setting Name="rewindOn" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">True</Value>
+      <Value Profile="(Default)" />
     </Setting>
   </Settings>
 </SettingsFile>
