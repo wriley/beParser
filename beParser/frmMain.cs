@@ -1373,7 +1373,7 @@ namespace beParser
 
         public void ThreadLogOutput(String s)
         {
-            _parentForm.LogOutput("Thread " + System.Threading.Thread.CurrentThread.ManagedThreadId + " " + s);
+            _parentForm.LogOutput(s);
         }
 
         public void ThreadLogRcon(String s)
