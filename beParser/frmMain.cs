@@ -15,21 +15,18 @@ namespace beParser
 {
     public partial class frmMain : Form
     {
-        //private
+        // private
         private bool started = false;
         private List<Producer> producerObjects = new List<Producer>();
         private List<Consumer> consumerObjects = new List<Consumer>();
         private List<Thread> workerThreads = new List<Thread>();
-
         private ConcurrentQueue<string> debugLogQueue = new ConcurrentQueue<string>();
         private ConcurrentQueue<string> outputLogQueue = new ConcurrentQueue<string>();
         private ConcurrentQueue<string> rconLogQueue = new ConcurrentQueue<string>();
 
-        private string basePath = "C://arma2oa//dayz_2//BattlEye";
-        //string basePath = "testlogs//BattlEye";
-
         // public
-        public bool rewind = false;
+        public bool rewindOn = false;
+        public string basePath;
         public Dictionary<string, string> playerToGuid = new Dictionary<string, string>();
         public Dictionary<string, string> uidToPlayer = new Dictionary<string, string>();
         public Dictionary<int, string> slotToIP = new Dictionary<int, string>();
@@ -38,6 +35,9 @@ namespace beParser
         public Dictionary<string, ConcurrentQueue<string>> lineQueues = new Dictionary<string, ConcurrentQueue<string>>();
         public Dictionary<string, List<FileCheck>> fileChecks = new Dictionary<string, List<FileCheck>>();
         public Dictionary<string, int> ruleCounts = new Dictionary<string, int>();
+        public Dictionary<string, string> bufRE = new Dictionary<string, string>();
+
+        #region Classes/Structs
 
         [Serializable]
         public class FileCheckData
@@ -54,35 +54,6 @@ namespace beParser
             private FileCheckData()
             {
 
-            }
-        }
-
-        private string SerializeFileCheckData()
-        {
-            List<FileCheckData> tempList = new List<FileCheckData>(fileChecks.Count);
-            foreach (string key in fileChecks.Keys)
-            {
-                tempList.Add(new FileCheckData(key, fileChecks[key]));
-            }
-            XmlSerializer serializer = new XmlSerializer(typeof(List<FileCheckData>));
-            StringWriter sw = new StringWriter();
-            XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
-            ns.Add("", "");
-            serializer.Serialize(sw, tempList, ns);
-
-            return sw.ToString();
-        }
-
-        private void DeserializeFileCheckData(string RawData)
-        {
-            fileChecks.Clear();
-            fileChecks = new Dictionary<string, List<FileCheck>>();
-            XmlSerializer xs = new XmlSerializer(typeof(List<FileCheckData>));
-            StringReader sr = new StringReader(RawData);
-            List<FileCheckData> tempList = (List<FileCheckData>)xs.Deserialize(sr);
-            foreach (FileCheckData fcd in tempList)
-            {
-                fileChecks.Add(fcd.FileName, fcd.FileChecks);
             }
         }
 
@@ -116,6 +87,8 @@ namespace beParser
             }
         }
 
+        #endregion
+
         public frmMain()
         {
             InitializeComponent();
@@ -123,13 +96,24 @@ namespace beParser
 
         private void fmrMain_Load(object sender, EventArgs e)
         {
-            // TODO
-            // read options
+            if (Properties.Settings.Default.basePath == "")
+            {
+                MessageBox.Show("You need to set the path to your BattlEye folder");
+                frmOptions frmOptions = new frmOptions(this);
+                frmOptions.Show(this);
+            }
+            LoadSettings();
             Run();
         }
 
-        private void Start()
+        #region Main program flow functions
+
+        private bool Start()
         {
+            if (basePath.Length == 0 || !Directory.Exists(basePath))
+            {
+                return false;
+            }
             // clear things
             fileChecks.Clear();
             lineQueues.Clear();
@@ -139,51 +123,59 @@ namespace beParser
             ruleCounts.Clear();
 
             // Load files to monitor from fileChecks.xml
-            LoadFileChecks();
-
-            // check for rewind option (read files from beginning)
-            rewind = cbRewind.Checked;
-
-            // create and start producer threads
-            foreach (String file in fileChecks.Keys)
+            if (LoadFileChecks())
             {
-                ConcurrentQueue<string> lineQueue = new ConcurrentQueue<string>();
-                lineQueues.Add(file, lineQueue);
-                string fullPath = basePath;
-                if (file == "server_console")
+
+                // check for rewind option (read files from beginning)
+                rewindOn = cbRewindOn.Checked;
+
+                // create and start producer threads
+                foreach (String file in fileChecks.Keys)
                 {
-                    fullPath += "//..//" + file + ".log";
+                    ConcurrentQueue<string> lineQueue = new ConcurrentQueue<string>();
+                    lineQueues.Add(file, lineQueue);
+                    string fullPath = basePath;
+                    if (file == "server_console")
+                    {
+                        fullPath += "//..//" + file + ".log";
+                    }
+                    else if (file == "arma2oaserver")
+                    {
+                        fullPath += "//..//" + file + ".RPT";
+                    }
+                    else
+                    {
+                        fullPath += "//" + file + ".log";
+                    }
+                    Producer w = new Producer(this, fullPath, file);
+                    producerObjects.Add(w);
+                    Thread t = new Thread(w.DoWork);
+                    workerThreads.Add(t);
+                    t.IsBackground = true;
+                    t.Start();
                 }
-                else if (file == "arma2oaserver")
+
+                // create and start consumer threads
+                foreach (var lineQueue in lineQueues)
                 {
-                    fullPath += "//..//" + file + ".RPT";
+                    ConcurrentQueue<string> lq = lineQueues[lineQueue.Key];
+                    Consumer c = new Consumer(this, lineQueue.Key);
+                    consumerObjects.Add(c);
+                    Thread t = new Thread(c.DoWork);
+                    workerThreads.Add(t);
+                    t.IsBackground = true;
+                    t.Start();
                 }
-                else
-                {
-                    fullPath += "//" + file + ".log";
-                }
-                Producer w = new Producer(this, fullPath, file);
-                producerObjects.Add(w);
-                Thread t = new Thread(w.DoWork);
-                workerThreads.Add(t);
-                t.IsBackground = true;
-                t.Start();
+
+                return true;
             }
-
-            // create and start consumer threads
-            foreach (var lineQueue in lineQueues)
+            else
             {
-                ConcurrentQueue<string> lq = lineQueues[lineQueue.Key];
-                Consumer c = new Consumer(this, lineQueue.Key);
-                consumerObjects.Add(c);
-                Thread t = new Thread(c.DoWork);
-                workerThreads.Add(t);
-                t.IsBackground = true;
-                t.Start();
+                return false;
             }
         }
 
-        private void Stop()
+        private bool Stop()
         {
             LogDebug("Stopping producer and consumer threads");
 
@@ -234,6 +226,8 @@ namespace beParser
                     };
                 timer.Start();
             }
+            lineQueues.Clear();
+            return true;
         }
 
         private void Run()
@@ -250,69 +244,59 @@ namespace beParser
             Thread tRcon = new Thread(DoRconLog);
             tRcon.IsBackground = true;
             tRcon.Start();
+
+            Thread tLinesQueued = new Thread(DoLinesQueued);
+            tLinesQueued.IsBackground = true;
+            tLinesQueued.Start();
         }
 
-        private void LoadFileChecks()
+        private bool LoadFileChecks()
         {
             try
             {
                 StreamReader sr = new StreamReader("fileChecks.xml");
                 DeserializeFileCheckData(sr.ReadToEnd());
+                return true;
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Error loading fileChecks.xml: " + ex.Message);
+                return false;
             }
         }
 
-        private void DoDebugLog()
+        private string SerializeFileCheckData()
         {
-            string s;
-            for (;;)
+            List<FileCheckData> tempList = new List<FileCheckData>(fileChecks.Count);
+            foreach (string key in fileChecks.Keys)
             {
-                if (debugLogQueue.TryDequeue(out s))
-                {
-                    UpdateDebugText(s);
-                }
-                else
-                {
-                    Thread.Sleep(100);
-                }
+                tempList.Add(new FileCheckData(key, fileChecks[key]));
             }
+            XmlSerializer serializer = new XmlSerializer(typeof(List<FileCheckData>));
+            StringWriter sw = new StringWriter();
+            XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
+            ns.Add("", "");
+            serializer.Serialize(sw, tempList, ns);
+
+            return sw.ToString();
         }
 
-        private void DoOutputLog()
+        private void DeserializeFileCheckData(string RawData)
         {
-            string s;
-            for (;;)
+            fileChecks.Clear();
+            fileChecks = new Dictionary<string, List<FileCheck>>();
+            XmlSerializer xs = new XmlSerializer(typeof(List<FileCheckData>));
+            StringReader sr = new StringReader(RawData);
+            List<FileCheckData> tempList = (List<FileCheckData>)xs.Deserialize(sr);
+            foreach (FileCheckData fcd in tempList)
             {
-                if (outputLogQueue.TryDequeue(out s))
-                {
-                    UpdateOutputText(s);
-                }
-                else
-                {
-                    Thread.Sleep(100);
-                }
+                fileChecks.Add(fcd.FileName, fcd.FileChecks);
             }
         }
 
-        private void DoRconLog()
-        {
-            string s;
-            for (;;)
-            {
-                if (rconLogQueue.TryDequeue(out s))
-                {
-                    UpdateRconText(s);
-                }
-                else
-                {
-                    Thread.Sleep(100);
-                }
-            }
-        }
+        #endregion
 
+        #region Delegates
         delegate void UpdateDebugTextCallback(string s);
         private void UpdateDebugText(string s)
         {
@@ -389,8 +373,35 @@ namespace beParser
             }
         }
 
+        delegate void UpdateLinesQueuedCallback(bool c);
+        private void UpdateLinesQueued(bool c)
+        {
+            try
+            {
+                if (this.rbLinesQueued.InvokeRequired)
+                {
+                    UpdateLinesQueuedCallback d = new UpdateLinesQueuedCallback(UpdateLinesQueued);
+
+                    Invoke(d, new object[] { c });
+
+                }
+                else
+                {
+                    rbLinesQueued.Checked = c;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogRcon(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+            }
+        }
+        #endregion
+
+        #region overrides
+
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            btnStartStop.Enabled = false;
             LogDebug("Stopping producer and consumer threads");
 
             // Check if any worker threads are running
@@ -443,6 +454,10 @@ namespace beParser
             }
         }
 
+        #endregion
+
+        #region Logging
+
         internal void LogDebug(String s)
         {
             debugLogQueue.Enqueue(AddDateString(s));
@@ -458,6 +473,135 @@ namespace beParser
             rconLogQueue.Enqueue(s);
         }
 
+        private void DoDebugLog()
+        {
+            string s;
+            for (;;)
+            {
+                if (debugLogQueue.TryDequeue(out s))
+                {
+                    UpdateDebugText(s);
+                }
+                else
+                {
+                    Thread.Sleep(500);
+                }
+            }
+        }
+
+        private void DoOutputLog()
+        {
+            string s;
+            for (;;)
+            {
+                if (outputLogQueue.TryDequeue(out s))
+                {
+                    UpdateOutputText(s);
+                }
+                else
+                {
+                    Thread.Sleep(500);
+                }
+            }
+        }
+
+        private void DoRconLog()
+        {
+            string s;
+            for (;;)
+            {
+                if (rconLogQueue.TryDequeue(out s))
+                {
+                    UpdateRconText(s);
+                }
+                else
+                {
+                    Thread.Sleep(500);
+                }
+            }
+        }
+
+        private void DoLinesQueued()
+        {
+            int linesCount;
+
+            for (;;)
+            {
+                linesCount = 0;
+                foreach (var lq in lineQueues)
+                {
+                    linesCount += lineQueues[lq.Key].Count;
+                }
+                if (linesCount > 0)
+                {
+                    UpdateLinesQueued(true);
+                }
+                else
+                {
+                    UpdateLinesQueued(false);
+                }
+                LogDebug("linesQueued: " + linesCount);
+                Thread.Sleep(1000);
+            }
+        }
+
+        #endregion
+
+        #region UI event functions
+
+        private void btnStartStop_Click(object sender, EventArgs e)
+        {
+            btnStartStop.Enabled = false;
+
+            if (started)
+            {
+                if (Stop())
+                {
+                    started = false;
+                    btnStartStop.Text = "Start";
+                    cbRewindOn.Enabled = true;
+                }
+            }
+            else
+            {
+                if (Start())
+                {
+                    started = true;
+                    btnStartStop.Text = "Stop";
+                    cbRewindOn.Enabled = false;
+                }
+            }
+
+            btnStartStop.Enabled = true;
+        }
+
+        private void exitToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Application.Exit();
+        }
+
+        private void aboutToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            frmAboutBox frmAboutBox = new frmAboutBox();
+            frmAboutBox.ShowDialog(this);
+        }
+
+        private void optionsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            frmOptions frmOptions = new frmOptions(this);
+            frmOptions.Show(this);
+        }
+
+        private void cbRewindOn_CheckedChanged(object sender, EventArgs e)
+        {
+            rewindOn = cbRewindOn.Checked;
+            SaveSettings();
+        }
+
+        #endregion
+
+        #region Internal helper functions
+
         internal String GetDateString()
         {
             return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
@@ -466,28 +610,6 @@ namespace beParser
         internal String AddDateString(String s)
         {
             return GetDateString() + " " + s;
-        }
-
-        private void btnStartStop_Click(object sender, EventArgs e)
-        {
-            btnStartStop.Enabled = false;
-            cbRewind.Enabled = false;
-
-            if (started)
-            {
-                Stop();
-                started = false;
-                btnStartStop.Text = "Start";
-            }
-            else
-            {
-                Start();
-                started = true;
-                btnStartStop.Text = "Stop";
-            }
-
-            btnStartStop.Enabled = true;
-            cbRewind.Enabled = true;
         }
 
         internal bool GetLineQueueLine(string fileName, out string line)
@@ -612,12 +734,12 @@ namespace beParser
             }
         }
 
-        internal bool NewPlayer(string player, string guid)
+        internal bool IsNewPlayer(string player, string guid)
         {
             return !playerToGuid.ContainsKey(player);
         }
 
-        internal void UpdateRuleCount(string key)
+        internal void UpdateRuleCount(string key, int count = 1)
         {
             if (!ruleCounts.ContainsKey(key))
             {
@@ -625,7 +747,7 @@ namespace beParser
             }
             else
             {
-                ruleCounts[key]++;
+                ruleCounts[key] += count;
             }
         }
 
@@ -679,17 +801,27 @@ namespace beParser
             }
         }
 
-        private void exitToolStripMenuItem_Click(object sender, EventArgs e)
+        internal void SaveSettings()
         {
-            Application.Exit();
+            Properties.Settings.Default.basePath = basePath;
+            Properties.Settings.Default.rewindOn = rewindOn;
+            Properties.Settings.Default.Save();
+
+            LoadSettings();
         }
 
-        private void aboutToolStripMenuItem_Click(object sender, EventArgs e)
+        internal void LoadSettings()
         {
-            frmAboutBox frmAboutBox = new frmAboutBox();
-            frmAboutBox.ShowDialog(this);
+            basePath = Properties.Settings.Default.basePath;
+            rewindOn = Properties.Settings.Default.rewindOn;
+            cbRewindOn.Checked = rewindOn;
         }
+
+        #endregion
+
     }
+
+    #region Thread definitions
 
     public class GenericWorkerThread
     {
@@ -708,6 +840,7 @@ namespace beParser
 
         public void SpinAndWait(int ms)
         {
+            // sleep but check periodically if we should quit
             if (ms >= 10)
             {
                 for (int i = 0; i < ms && !_shouldStop; i += 10)
@@ -722,13 +855,14 @@ namespace beParser
         }
     }
 
+    #region Producer thread
+
     public class Producer : GenericWorkerThread
     {
         private String _filePath;
         private String _fileName;
         private FileStream _fs;
         private StreamReader _sr;
-        private Int64 _linesRead = 0;
         private bool _isMultiline = false;
         private StringBuilder _stringBuilder;
         private Regex _lineStartRegex;
@@ -761,7 +895,7 @@ namespace beParser
                     _fs = File.Open(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                     _sr = new StreamReader(_fs);
                     Int64 lastSize = GetFileSize();
-                    if (!_parentForm.rewind)
+                    if (!_parentForm.rewindOn)
                     {
                         _sr.BaseStream.Seek(lastSize, SeekOrigin.Begin);
                     }
@@ -781,12 +915,6 @@ namespace beParser
                         {
                             if ((line = _sr.ReadLine()) != null)
                             {
-                                _linesRead++;
-                                if ((_linesRead % 100) == 0)
-                                {
-                                    ThreadLogDebug(_fileName + " " + _linesRead + " lines read");
-                                }
-
                                 // files with output on multiple lines require special handling
                                 if (_isMultiline)
                                 {
@@ -813,6 +941,7 @@ namespace beParser
                             }
                             else
                             {
+                                // couldn't read a line so wait nicely
                                 SpinAndWait(1000);
                             }
                             lastSize = currentSize;
@@ -851,6 +980,10 @@ namespace beParser
 
     }
 
+    #endregion
+
+    #region Consumer thread
+
     public class Consumer : GenericWorkerThread
     {
         private string _fileName;
@@ -869,6 +1002,9 @@ namespace beParser
         private string rule;
         private Int32 unixtime = 0;
         private string evt;
+        private Regex server_console1 = new Regex(@"\d+:\d+:\d+ (?:BattlEye Server: Player #(?<slot>\d+) (?<player>.*?) (?:- GUID: (?<guid>[a-f0-9]{32}) \(unverified\)|\((?<ip>[0-9.]+?):\d+\) connected)|Player (?<player>.*?) (?:kicked off by BattlEye: (?<evt>Admin Ban)|connected \(id=(?<uid>[0-9AX]+)\)\.|(?<evt>disconnected)\.|kicked off by BattlEye: (?<evt>Global Ban) #[a-f0-9]+)|Player #(?<slot>\d+) (?<player>.*?) \([a-f0-9]{32}\) has been kicked by BattlEye: (?<evt>Invalid GUID)|BattlEye Server: \((?<evt>.*?)\) (?<player>.*?) *: (?<msg>.*)) *$", RegexOptions.Compiled | RegexOptions.Singleline);
+        private Regex publicvariable1 = new Regex(@"([0-9]+\.[0-9]+\.[0-9]+ [0-9]+:[0-9]+:[0-9]+): (.*) \(([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}):[0-9]+\) ([0-9a-z]{32}) - ", RegexOptions.Compiled | RegexOptions.Singleline);
+        private Regex otherfiles1 = new Regex(@"(?<date>(?<D>\d+)\.(?<M>\d+)\.(?<Y>\d+) (?<h>\d+):(?<m>\d+):(?<s>\d+)): (?<player>.*?) ?\((?<ip>[0-9.]{7,15}):[0-9]{1,5}\) (?<guid>(?:-|[a-f0-9]{32})) - ", RegexOptions.Compiled | RegexOptions.Singleline);
 
         public Consumer(frmMain parentForm, string fileName)
         {
@@ -894,7 +1030,6 @@ namespace beParser
                     // Special checks
                     if (_fileName == "server_console")
                     {
-                        Regex server_console1 = new Regex(@"\d+:\d+:\d+ (?:BattlEye Server: Player #(?<slot>\d+) (?<player>.*?) (?:- GUID: (?<guid>[a-f0-9]{32}) \(unverified\)|\((?<ip>[0-9.]+?):\d+\) connected)|Player (?<player>.*?) (?:kicked off by BattlEye: (?<evt>Admin Ban)|connected \(id=(?<uid>[0-9AX]+)\)\.|(?<evt>disconnected)\.|kicked off by BattlEye: (?<evt>Global Ban) #[a-f0-9]+)|Player #(?<slot>\d+) (?<player>.*?) \([a-f0-9]{32}\) has been kicked by BattlEye: (?<evt>Invalid GUID)|BattlEye Server: \((?<evt>.*?)\) (?<player>.*?) *: (?<msg>.*)) *$");
                         _match1 = server_console1.Match(line);
 
                         if (_match1.Success)
@@ -977,7 +1112,6 @@ namespace beParser
                     }
                     else if (_fileName == "publicvariable")
                     {
-                        Regex publicvariable1 = new Regex(@"([0-9]+\.[0-9]+\.[0-9]+ [0-9]+:[0-9]+:[0-9]+): (.*) \(([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}):[0-9]+\) ([0-9a-z]{32}) - ");
                         _match1 = publicvariable1.Match(line);
                         if (_match1.Success)
                         {
@@ -996,12 +1130,11 @@ namespace beParser
                             ip = _match1.Groups[3].Value;
                             guid = _match1.Groups[4].Value;
 
-                            if (_parentForm.NewPlayer(player, guid))
+                            if (_parentForm.IsNewPlayer(player, guid))
                             {
                                 ThreadLogOutput(_match1.Groups[1].Value + " GUID seen '" + player + "'=>" + guid);
+                                _parentForm.PlayerToGuidAdd(player, guid);
                             }
-
-                            _parentForm.PlayerToGuidAdd(player, guid);
                         }
                         else
                         {
@@ -1012,8 +1145,7 @@ namespace beParser
                     }
                     else // other logs
                     {
-                        Regex reg = new Regex(@"(?<date>(?<D>\d+)\.(?<M>\d+)\.(?<Y>\d+) (?<h>\d+):(?<m>\d+):(?<s>\d+)): (?<player>.*?) ?\((?<ip>[0-9.]{7,15}):[0-9]{1,5}\) (?<guid>(?:-|[a-f0-9]{32})) - ");
-                        _match1 = reg.Match(line);
+                        _match1 = otherfiles1.Match(line);
                         if (_match1.Success)
                         {
                             Group guidExists = _match1.Groups["guid"];
@@ -1051,7 +1183,7 @@ namespace beParser
 
                             if (guidExists.Success && playerExists.Success)
                             {
-                                if (_parentForm.NewPlayer(player, guid))
+                                if (_parentForm.IsNewPlayer(player, guid))
                                 {
                                     _parentForm.PlayerToGuidAdd(player, guid);
                                     ThreadLogOutput(date + " GUID seen '" + player + "'=>" + guid);
@@ -1070,7 +1202,7 @@ namespace beParser
 
                         if (_fileChecks[i].regex_match != null)
                         {
-                            _regex1 = new Regex(_fileChecks[i].regex_match, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+                            _regex1 = new Regex(_fileChecks[i].regex_match, RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
                             _match1 = _regex1.Match(line);
                         }
                         else
@@ -1081,7 +1213,7 @@ namespace beParser
 
                         if (_fileChecks[i].regex_nomatch != null)
                         {
-                            _regex2 = new Regex(_fileChecks[i].regex_nomatch, RegexOptions.Compiled | RegexOptions.IgnoreCase);
+                            _regex2 = new Regex(_fileChecks[i].regex_nomatch, RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
                             _match2 = _regex2.Match(line);
                         }
                         else
@@ -1099,35 +1231,67 @@ namespace beParser
 
                             if ((guid != null) && (guid != ""))
                             {
+                                // if timestamp not detected in file then set to now
+                                if (unixtime == 0)
+                                {
+                                    unixtime = (Int32)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
+                                }
+
                                 if (_fileChecks[i].seconds == 0)
                                 {
                                     _parentForm.Ban(guid, ip, player, -1, date, rule, _fileChecks[i].command);
 
                                     // Remote Exec hack follow up
-                                    // TODO
                                     if (_fileChecks[i].count == -1)
                                     {
                                         if (_fileName == "scripts")
                                         {
+                                            if (_parentForm.bufRE.Count > 0 && player == _parentForm.bufRE["player"])
+                                            {
+                                                List<string> others = _parentForm.bufRE["others"].Split(',').ToList<string>();
+                                                others.Remove(player);
+                                                string[] cheaters = others.ToArray();
 
+                                                if (cheaters.Length == 0)
+                                                {
+                                                    _parentForm.bufRE.Clear();
+                                                }
+                                                else
+                                                {
+                                                    _parentForm.bufRE["others"] = string.Join(",", cheaters);
+                                                }
+                                            }
                                         }
                                         else if (_fileName == "arma2oaserver")
                                         {
+                                            Group tagExists = _match1.Groups["tag"];
+                                            Group othersExists = _match1.Groups["others"];
+                                            Group playerExists = _match1.Groups["player"];
+                                            if (tagExists.Success && othersExists.Success && playerExists.Success)
+                                            {
+                                                _parentForm.bufRE.Add("tag", tagExists.Value);
+                                                _parentForm.bufRE.Add("others", othersExists.Value);
+                                                _parentForm.bufRE.Add("player", playerExists.Value);
 
+
+                                                _parentForm.bufRE.Add("t", unixtime.ToString());
+                                            }
                                         }
                                         else
                                         {
                                             // PV
+                                            ThreadLogDebug("PV HACK...");
+                                            string key = rule + guid + Convert.ToString(Convert.ToDecimal((unixtime / _fileChecks[i].seconds)));
+                                            if (!_parentForm.ruleCounts.ContainsKey(key))
+                                            {
+                                                _parentForm.Ban(guid, ip, player, slot, date, rule, _fileChecks[i].command);
+                                                _parentForm.UpdateRuleCount(key, 1);
+                                            }
                                         }
                                     }
                                 }
                                 else
                                 {
-                                    if (unixtime == 0)
-                                    {
-                                        unixtime = (Int32)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
-                                    }
-
                                     string key = rule + guid + Convert.ToString(Convert.ToDecimal((unixtime / _fileChecks[i].seconds)));
 
                                     _parentForm.UpdateRuleCount(key);
@@ -1136,13 +1300,47 @@ namespace beParser
                                     ThreadLogOutput(currentCount + "/" + _fileChecks[i].count + ":" + _fileName + ":" + line);
                                     if (currentCount == _fileChecks[i].count)
                                     {
-                                        _parentForm.Ban(guid, null, null, -1, date, rule, _fileChecks[i].command);
+                                        _parentForm.Ban(guid, ip, player, slot, date, rule, _fileChecks[i].command);
                                         _parentForm.ruleCounts.Remove(key);
                                     }
                                 }
                             }
                         }
                     }
+                    if (_parentForm.bufRE.Count > 0)
+                    {
+                        // RE
+                        int delay = 0;
+                        try
+                        {
+                            delay = Convert.ToInt16(_parentForm.bufRE["t"]);
+                        }
+                        catch
+                        {
+                            delay = 0;
+                        }
+
+                        string[] cheaters = _parentForm.bufRE["others"].Split(',');
+                        if (delay > 120 && cheaters.Length > 0 && cheaters.Length < 4)
+                        {
+                            ThreadLogDebug(_parentForm.GetDateString() + " RE-HACK: Cheaters List: '" + string.Join(",", cheaters) + "', delay after Unit spawn:" + delay);
+                            Random random = new Random();
+                            string player = cheaters[random.Next(0, cheaters.Length)];
+                            string guid = _parentForm.PlayerToGuidGet(player);
+                            int slot = _parentForm.PlayerToSlotGet(player);
+                            if (guid != null)
+                            {
+                                ThreadLogDebug(_parentForm.GetDateString() + " RE-HACK: Banning " + player + " (" + guid + ")");
+                                if (slot >= 0)
+                                {
+                                    ThreadLogRcon("kickbyguid " + guid + " Ping too high " + random.Next(500, 800));
+                                }
+                                ThreadLogRcon("kickbyguid " + guid + " Game restart required");
+                            }
+                            _parentForm.bufRE.Clear();
+                        }
+                    }
+
                 }
                 else
                 {
@@ -1150,13 +1348,12 @@ namespace beParser
                     SpinAndWait(1000);
                 }
             }
-
             ThreadLogDebug("Consumer exiting");
         }
 
         public void ThreadLogOutput(String s)
         {
-            _parentForm.LogOutput(s);
+            _parentForm.LogOutput("Thread " + System.Threading.Thread.CurrentThread.ManagedThreadId + " " + s);
         }
 
         public void ThreadLogRcon(String s)
@@ -1164,4 +1361,7 @@ namespace beParser
             _parentForm.LogRcon(s);
         }
     }
+
+    #endregion
+    #endregion
 }

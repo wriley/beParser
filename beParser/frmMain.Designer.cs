@@ -34,13 +34,16 @@
             this.rtbRcon = new System.Windows.Forms.RichTextBox();
             this.menuStrip1 = new System.Windows.Forms.MenuStrip();
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.optionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
             this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.helpToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.aboutToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.tableLayoutPanel2 = new System.Windows.Forms.TableLayoutPanel();
             this.tableLayoutPanel3 = new System.Windows.Forms.TableLayoutPanel();
             this.flowLayoutPanel1 = new System.Windows.Forms.FlowLayoutPanel();
-            this.cbRewind = new System.Windows.Forms.CheckBox();
+            this.cbRewindOn = new System.Windows.Forms.CheckBox();
+            this.rbLinesQueued = new System.Windows.Forms.RadioButton();
             this.menuStrip1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
             this.tableLayoutPanel3.SuspendLayout();
@@ -57,6 +60,7 @@
             this.rtbOutput.ReadOnly = true;
             this.rtbOutput.Size = new System.Drawing.Size(872, 319);
             this.rtbOutput.TabIndex = 0;
+            this.rtbOutput.TabStop = false;
             this.rtbOutput.Text = "";
             // 
             // rtbDebug
@@ -67,6 +71,7 @@
             this.rtbDebug.ReadOnly = true;
             this.rtbDebug.Size = new System.Drawing.Size(872, 102);
             this.rtbDebug.TabIndex = 1;
+            this.rtbDebug.TabStop = false;
             this.rtbDebug.Text = "";
             // 
             // btnStartStop
@@ -74,7 +79,7 @@
             this.btnStartStop.Location = new System.Drawing.Point(3, 3);
             this.btnStartStop.Name = "btnStartStop";
             this.btnStartStop.Size = new System.Drawing.Size(75, 22);
-            this.btnStartStop.TabIndex = 2;
+            this.btnStartStop.TabIndex = 0;
             this.btnStartStop.Text = "Start";
             this.btnStartStop.UseVisualStyleBackColor = true;
             this.btnStartStop.Click += new System.EventHandler(this.btnStartStop_Click);
@@ -87,6 +92,7 @@
             this.rtbRcon.ReadOnly = true;
             this.rtbRcon.Size = new System.Drawing.Size(872, 103);
             this.rtbRcon.TabIndex = 3;
+            this.rtbRcon.TabStop = false;
             this.rtbRcon.Text = "";
             // 
             // menuStrip1
@@ -103,15 +109,29 @@
             // fileToolStripMenuItem
             // 
             this.fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.optionsToolStripMenuItem,
+            this.toolStripSeparator1,
             this.exitToolStripMenuItem});
             this.fileToolStripMenuItem.Name = "fileToolStripMenuItem";
             this.fileToolStripMenuItem.Size = new System.Drawing.Size(37, 20);
             this.fileToolStripMenuItem.Text = "&File";
             // 
+            // optionsToolStripMenuItem
+            // 
+            this.optionsToolStripMenuItem.Name = "optionsToolStripMenuItem";
+            this.optionsToolStripMenuItem.Size = new System.Drawing.Size(116, 22);
+            this.optionsToolStripMenuItem.Text = "&Options";
+            this.optionsToolStripMenuItem.Click += new System.EventHandler(this.optionsToolStripMenuItem_Click);
+            // 
+            // toolStripSeparator1
+            // 
+            this.toolStripSeparator1.Name = "toolStripSeparator1";
+            this.toolStripSeparator1.Size = new System.Drawing.Size(113, 6);
+            // 
             // exitToolStripMenuItem
             // 
             this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            this.exitToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.exitToolStripMenuItem.Size = new System.Drawing.Size(116, 22);
             this.exitToolStripMenuItem.Text = "E&xit";
             this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
             // 
@@ -126,7 +146,7 @@
             // aboutToolStripMenuItem
             // 
             this.aboutToolStripMenuItem.Name = "aboutToolStripMenuItem";
-            this.aboutToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.aboutToolStripMenuItem.Size = new System.Drawing.Size(116, 22);
             this.aboutToolStripMenuItem.Text = "&About...";
             this.aboutToolStripMenuItem.Click += new System.EventHandler(this.aboutToolStripMenuItem_Click);
             // 
@@ -168,22 +188,34 @@
             // 
             this.flowLayoutPanel1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
             this.flowLayoutPanel1.Controls.Add(this.btnStartStop);
-            this.flowLayoutPanel1.Controls.Add(this.cbRewind);
+            this.flowLayoutPanel1.Controls.Add(this.cbRewindOn);
+            this.flowLayoutPanel1.Controls.Add(this.rbLinesQueued);
             this.flowLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.flowLayoutPanel1.Location = new System.Drawing.Point(3, 3);
             this.flowLayoutPanel1.Name = "flowLayoutPanel1";
             this.flowLayoutPanel1.Size = new System.Drawing.Size(878, 34);
             this.flowLayoutPanel1.TabIndex = 7;
             // 
-            // cbRewind
+            // cbRewindOn
             // 
-            this.cbRewind.AutoSize = true;
-            this.cbRewind.Location = new System.Drawing.Point(84, 3);
-            this.cbRewind.Name = "cbRewind";
-            this.cbRewind.Size = new System.Drawing.Size(62, 17);
-            this.cbRewind.TabIndex = 8;
-            this.cbRewind.Text = "Rewind";
-            this.cbRewind.UseVisualStyleBackColor = true;
+            this.cbRewindOn.AutoSize = true;
+            this.cbRewindOn.Location = new System.Drawing.Point(84, 3);
+            this.cbRewindOn.Name = "cbRewindOn";
+            this.cbRewindOn.Size = new System.Drawing.Size(62, 17);
+            this.cbRewindOn.TabIndex = 1;
+            this.cbRewindOn.Text = "Rewind";
+            this.cbRewindOn.UseVisualStyleBackColor = true;
+            this.cbRewindOn.CheckedChanged += new System.EventHandler(this.cbRewindOn_CheckedChanged);
+            // 
+            // rbLinesQueued
+            // 
+            this.rbLinesQueued.AutoSize = true;
+            this.rbLinesQueued.Location = new System.Drawing.Point(152, 3);
+            this.rbLinesQueued.Name = "rbLinesQueued";
+            this.rbLinesQueued.Size = new System.Drawing.Size(48, 17);
+            this.rbLinesQueued.TabIndex = 9;
+            this.rbLinesQueued.Text = "Busy";
+            this.rbLinesQueued.UseVisualStyleBackColor = true;
             // 
             // frmMain
             // 
@@ -221,7 +253,10 @@
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel2;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel3;
         private System.Windows.Forms.FlowLayoutPanel flowLayoutPanel1;
-        private System.Windows.Forms.CheckBox cbRewind;
+        private System.Windows.Forms.CheckBox cbRewindOn;
+        private System.Windows.Forms.RadioButton rbLinesQueued;
+        private System.Windows.Forms.ToolStripMenuItem optionsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator1;
     }
 }
 
