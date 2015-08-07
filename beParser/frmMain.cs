@@ -259,6 +259,7 @@ namespace beParser
             {
                 StreamReader sr = new StreamReader("fileChecks.xml");
                 DeserializeFileCheckData(sr.ReadToEnd());
+                LogDebug("Loaded " + fileChecks.Count + " file checks");
                 return true;
             }
             catch (Exception ex)
