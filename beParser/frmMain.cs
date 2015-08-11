@@ -905,6 +905,8 @@ namespace beParser
             _watcher.Deleted += new FileSystemEventHandler(OnChanged);
             _watcher.EnableRaisingEvents = true;
 
+            Int64 lastSize = 0;
+
             Thread.Sleep(1000);
 
             while (!_shouldStop)
@@ -914,58 +916,73 @@ namespace beParser
                     _fs = File.Open(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                     _sr = new StreamReader(_fs);
                     Int64 fileSize = GetFileSize();
-                    if (!_parentForm.rewindOn)
+                    lastSize = fileSize;
+                    if (!_parentForm.rewindOn && !_fileRotated)
                     {
                         _sr.BaseStream.Seek(fileSize, SeekOrigin.Begin);
                     }
                     string line;
                     ThreadLogDebug(Path.GetFileName(_filePath) + " is now open");
+
+                    if (_fileRotated) { _fileRotated = false; }
+
                     while (!_shouldStop && !_fileRotated)
                     {
-                        if ((line = _sr.ReadLine()) != null)
+                        fileSize = GetFileSize();
+                        if (fileSize < lastSize)
                         {
-                            // files with output on multiple lines require special handling
-                            // combine all lines here
-                            if (_isMultiline)
-                            {
-                                _lineStartMatch = _lineStartRegex.Match(line);
-                                // start of a line (date time string)
-                                if (_lineStartMatch.Success)
-                                {
-                                    if (_stringBuilder.Length > 0)
-                                    {
-                                        // there's a previous line so add that
-                                        _parentForm.AddLineQueueLine(_fileName, _stringBuilder.ToString());
-                                    }
-                                    // start over
-                                    _stringBuilder.Clear();
-                                }
-                                // append the line and replace newlines/tabs with space
-                                _stringBuilder.Append(line);
-                                _stringBuilder.Replace('\n', ' ');
-                                _stringBuilder.Replace('\t', ' ');
-                                _stringBuilder.Replace('\r', ' ');
-                            }
-                            else
-                            {
-                                // not multiline so just add it
-                                _parentForm.AddLineQueueLine(_fileName, line);
-                            }
-
-                            //ThreadLogDebug(line);
+                            // file has shrunk, assume it's rotated
+                            _fileRotated = true;
                         }
                         else
                         {
-                            // couldn't read a line, wait patiently
-                            SpinAndWait(1000);
+                            lastSize = fileSize;
+
+                            if ((line = _sr.ReadLine()) != null)
+                            {
+                                // files with output on multiple lines require special handling
+                                // combine all lines here
+                                if (_isMultiline)
+                                {
+                                    _lineStartMatch = _lineStartRegex.Match(line);
+                                    // start of a line (date time string)
+                                    if (_lineStartMatch.Success)
+                                    {
+                                        if (_stringBuilder.Length > 0)
+                                        {
+                                            // there's a previous line so add that
+                                            _parentForm.AddLineQueueLine(_fileName, _stringBuilder.ToString());
+                                        }
+                                        // start over
+                                        _stringBuilder.Clear();
+                                    }
+                                    // append the line and replace newlines/tabs with space
+                                    _stringBuilder.Append(line);
+                                    _stringBuilder.Replace('\n', ' ');
+                                    _stringBuilder.Replace('\t', ' ');
+                                    _stringBuilder.Replace('\r', ' ');
+                                }
+                                else
+                                {
+                                    // not multiline so just add it
+                                    _parentForm.AddLineQueueLine(_fileName, line);
+                                }
+
+                                //ThreadLogDebug(line);
+                            }
+                            else
+                            {
+                                // couldn't read a line, check if size is zero
+                                SpinAndWait(1000);
+                            }
                         }
                     }
+
                     if(_fileRotated)
                     {
                         ThreadLogDebug(Path.GetFileName(_filePath) + " was rotated");
                         if (_sr != null) { _sr.Close(); }
                         if (_fs != null) { _fs.Close(); }
-                        _fileRotated = false;
                     }
                 }
                 catch (Exception)
