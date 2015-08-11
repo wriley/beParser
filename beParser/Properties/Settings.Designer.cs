@@ -22,29 +22,5 @@ namespace beParser.Properties {
                 return defaultInstance;
             }
         }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string basePath {
-            get {
-                return ((string)(this["basePath"]));
-            }
-            set {
-                this["basePath"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool rewindOn {
-            get {
-                return ((bool)(this["rewindOn"]));
-            }
-            set {
-                this["rewindOn"] = value;
-            }
-        }
     }
 }

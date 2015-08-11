@@ -23,8 +23,8 @@ namespace beParser
 
         private void frmOptions_Load(object sender, EventArgs e)
         {
-            tbPath.Text = Properties.Settings.Default.basePath;
-            cbRewindOn.Checked = Properties.Settings.Default.rewindOn;
+            tbPath.Text = parentForm.basePath;
+            cbRewindOn.Checked = parentForm.rewindOn;
         }
 
         private void btnBrowse_Click(object sender, EventArgs e)
