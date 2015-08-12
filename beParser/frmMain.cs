@@ -540,6 +540,7 @@ namespace beParser
         private void DoLinesQueued()
         {
             int linesCount;
+            int doPrint = 0;
 
             for (;;)
             {
@@ -549,7 +550,14 @@ namespace beParser
                     linesCount += lineQueues[lq.Key].Count;
                 }
                 UpdateLinesQueued(linesCount);
-                //LogDebug("linesQueued: " + linesCount);
+                if (doPrint++ >= 25)
+                {
+                    if (linesCount > 0)
+                    {
+                        LogDebug("linesQueued: " + linesCount);
+                    }
+                    doPrint = 0;
+                }
                 Thread.Sleep(200);
             }
         }
