@@ -98,9 +98,11 @@ namespace beParser
 
         private void fmrMain_Load(object sender, EventArgs e)
         {
-            try {
+            try
+            {
                 iniFile = new INIFile(iniFilePath);
-            } catch (Exception ex)
+            }
+            catch (Exception ex)
             {
                 MessageBox.Show("Error accessing INI file: " + ex.Message);
                 return;
@@ -114,7 +116,7 @@ namespace beParser
                 frmOptions frmOptions = new frmOptions(this);
                 frmOptions.Show(this);
             }
-            
+
             Run();
         }
 
@@ -389,8 +391,8 @@ namespace beParser
             }
         }
 
-        delegate void UpdateLinesQueuedCallback(int n);
-        private void UpdateLinesQueued(int n)
+        delegate void UpdateLinesQueuedCallback(string s);
+        private void UpdateLinesQueued(string s)
         {
             try
             {
@@ -398,12 +400,12 @@ namespace beParser
                 {
                     UpdateLinesQueuedCallback d = new UpdateLinesQueuedCallback(UpdateLinesQueued);
 
-                    Invoke(d, new object[] { n });
+                    Invoke(d, new object[] { s });
 
                 }
                 else
                 {
-                    lblLinesQueued.Text = n.ToString();
+                    lblLinesQueued.Text = s;
                 }
             }
             catch (Exception ex)
@@ -539,8 +541,13 @@ namespace beParser
 
         private void DoLinesQueued()
         {
-            int linesCount;
+            int linesCount = 0;
+            int lastLinesCount = 0;
             int doPrint = 0;
+            int lpsCurr = 0;
+            int lpsLast = 0;
+            int lpsMax = 0;
+            int lpsAvg = 0;
 
             for (;;)
             {
@@ -549,15 +556,36 @@ namespace beParser
                 {
                     linesCount += lineQueues[lq.Key].Count;
                 }
-                UpdateLinesQueued(linesCount);
+
+
+                try
+                {
+                    lpsCurr = Math.Abs((lastLinesCount - linesCount) * 5);
+                }
+                catch (Exception)
+                {
+                    lpsCurr = 0;
+                }
+
+                if(lpsCurr > lpsMax)
+                {
+                    lpsMax = lpsCurr;
+                }
+                lpsAvg = (lpsCurr + lpsLast) / 2;
+
+                UpdateLinesQueued(linesCount.ToString());
+
                 if (doPrint++ >= 25)
                 {
                     if (linesCount > 0)
                     {
-                        LogDebug("linesQueued: " + linesCount);
+                        LogDebug(String.Format("linesQueued: {0}, lines processed per second Curr:{1}, Avg:{2}, Max:{3}", linesCount, lpsCurr, lpsAvg, lpsMax));
                     }
                     doPrint = 0;
                 }
+
+                lastLinesCount = linesCount;
+                lpsLast = lpsCurr;
                 Thread.Sleep(200);
             }
         }
@@ -998,7 +1026,7 @@ namespace beParser
                         }
                     }
 
-                    if(_fileRotated)
+                    if (_fileRotated)
                     {
                         ThreadLogDebug(Path.GetFileName(_filePath) + " was rotated");
                         if (_sr != null) { _sr.Close(); }
