@@ -29,17 +29,28 @@
         private void InitializeComponent()
         {
             this.btnOK = new System.Windows.Forms.Button();
-            this.lblPath = new System.Windows.Forms.Label();
-            this.tbPath = new System.Windows.Forms.TextBox();
+            this.lblGeneralPath = new System.Windows.Forms.Label();
+            this.tbGeneralPath = new System.Windows.Forms.TextBox();
             this.btnCancel = new System.Windows.Forms.Button();
             this.folderBrowserDialog1 = new System.Windows.Forms.FolderBrowserDialog();
-            this.btnBrowse = new System.Windows.Forms.Button();
-            this.cbRewindOn = new System.Windows.Forms.CheckBox();
+            this.btnGeneralBrowse = new System.Windows.Forms.Button();
+            this.cbGeneralRewindOn = new System.Windows.Forms.CheckBox();
+            this.gbGeneral = new System.Windows.Forms.GroupBox();
+            this.gbRCON = new System.Windows.Forms.GroupBox();
+            this.tbRCONHostname = new System.Windows.Forms.TextBox();
+            this.lblRCONHostname = new System.Windows.Forms.Label();
+            this.tbRCONPort = new System.Windows.Forms.TextBox();
+            this.lblRCONPort = new System.Windows.Forms.Label();
+            this.tbRCONPassword = new System.Windows.Forms.TextBox();
+            this.lblRCONPassword = new System.Windows.Forms.Label();
+            this.cbRCONConnect = new System.Windows.Forms.CheckBox();
+            this.gbGeneral.SuspendLayout();
+            this.gbRCON.SuspendLayout();
             this.SuspendLayout();
             // 
             // btnOK
             // 
-            this.btnOK.Location = new System.Drawing.Point(155, 144);
+            this.btnOK.Location = new System.Drawing.Point(153, 302);
             this.btnOK.Name = "btnOK";
             this.btnOK.Size = new System.Drawing.Size(75, 23);
             this.btnOK.TabIndex = 0;
@@ -47,25 +58,25 @@
             this.btnOK.UseVisualStyleBackColor = true;
             this.btnOK.Click += new System.EventHandler(this.btnOK_Click);
             // 
-            // lblPath
+            // lblGeneralPath
             // 
-            this.lblPath.AutoSize = true;
-            this.lblPath.Location = new System.Drawing.Point(12, 15);
-            this.lblPath.Name = "lblPath";
-            this.lblPath.Size = new System.Drawing.Size(71, 13);
-            this.lblPath.TabIndex = 1;
-            this.lblPath.Text = "BattlEye Path";
+            this.lblGeneralPath.AutoSize = true;
+            this.lblGeneralPath.Location = new System.Drawing.Point(11, 22);
+            this.lblGeneralPath.Name = "lblGeneralPath";
+            this.lblGeneralPath.Size = new System.Drawing.Size(71, 13);
+            this.lblGeneralPath.TabIndex = 1;
+            this.lblGeneralPath.Text = "BattlEye Path";
             // 
-            // tbPath
+            // tbGeneralPath
             // 
-            this.tbPath.Location = new System.Drawing.Point(89, 12);
-            this.tbPath.Name = "tbPath";
-            this.tbPath.Size = new System.Drawing.Size(268, 20);
-            this.tbPath.TabIndex = 2;
+            this.tbGeneralPath.Location = new System.Drawing.Point(88, 19);
+            this.tbGeneralPath.Name = "tbGeneralPath";
+            this.tbGeneralPath.Size = new System.Drawing.Size(268, 20);
+            this.tbGeneralPath.TabIndex = 2;
             // 
             // btnCancel
             // 
-            this.btnCancel.Location = new System.Drawing.Point(236, 144);
+            this.btnCancel.Location = new System.Drawing.Point(234, 302);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 23);
             this.btnCancel.TabIndex = 3;
@@ -73,53 +84,151 @@
             this.btnCancel.UseVisualStyleBackColor = true;
             this.btnCancel.Click += new System.EventHandler(this.btnCancel_Click);
             // 
-            // btnBrowse
+            // btnGeneralBrowse
             // 
-            this.btnBrowse.Location = new System.Drawing.Point(363, 10);
-            this.btnBrowse.Name = "btnBrowse";
-            this.btnBrowse.Size = new System.Drawing.Size(75, 23);
-            this.btnBrowse.TabIndex = 4;
-            this.btnBrowse.Text = "Browse...";
-            this.btnBrowse.UseVisualStyleBackColor = true;
-            this.btnBrowse.Click += new System.EventHandler(this.btnBrowse_Click);
+            this.btnGeneralBrowse.Location = new System.Drawing.Point(362, 17);
+            this.btnGeneralBrowse.Name = "btnGeneralBrowse";
+            this.btnGeneralBrowse.Size = new System.Drawing.Size(75, 23);
+            this.btnGeneralBrowse.TabIndex = 4;
+            this.btnGeneralBrowse.Text = "Browse...";
+            this.btnGeneralBrowse.UseVisualStyleBackColor = true;
+            this.btnGeneralBrowse.Click += new System.EventHandler(this.btnBrowse_Click);
             // 
-            // cbRewindOn
+            // cbGeneralRewindOn
             // 
-            this.cbRewindOn.AutoSize = true;
-            this.cbRewindOn.Location = new System.Drawing.Point(15, 49);
-            this.cbRewindOn.Name = "cbRewindOn";
-            this.cbRewindOn.Size = new System.Drawing.Size(233, 17);
-            this.cbRewindOn.TabIndex = 5;
-            this.cbRewindOn.Text = "Always rewind (start at beginning of log files)";
-            this.cbRewindOn.UseVisualStyleBackColor = true;
+            this.cbGeneralRewindOn.AutoSize = true;
+            this.cbGeneralRewindOn.Location = new System.Drawing.Point(14, 56);
+            this.cbGeneralRewindOn.Name = "cbGeneralRewindOn";
+            this.cbGeneralRewindOn.Size = new System.Drawing.Size(233, 17);
+            this.cbGeneralRewindOn.TabIndex = 5;
+            this.cbGeneralRewindOn.Text = "Always rewind (start at beginning of log files)";
+            this.cbGeneralRewindOn.UseVisualStyleBackColor = true;
+            // 
+            // gbGeneral
+            // 
+            this.gbGeneral.Controls.Add(this.tbGeneralPath);
+            this.gbGeneral.Controls.Add(this.cbGeneralRewindOn);
+            this.gbGeneral.Controls.Add(this.lblGeneralPath);
+            this.gbGeneral.Controls.Add(this.btnGeneralBrowse);
+            this.gbGeneral.Location = new System.Drawing.Point(12, 12);
+            this.gbGeneral.Name = "gbGeneral";
+            this.gbGeneral.Size = new System.Drawing.Size(447, 131);
+            this.gbGeneral.TabIndex = 6;
+            this.gbGeneral.TabStop = false;
+            this.gbGeneral.Text = "General";
+            // 
+            // gbRCON
+            // 
+            this.gbRCON.Controls.Add(this.cbRCONConnect);
+            this.gbRCON.Controls.Add(this.tbRCONPassword);
+            this.gbRCON.Controls.Add(this.lblRCONPassword);
+            this.gbRCON.Controls.Add(this.tbRCONPort);
+            this.gbRCON.Controls.Add(this.lblRCONPort);
+            this.gbRCON.Controls.Add(this.tbRCONHostname);
+            this.gbRCON.Controls.Add(this.lblRCONHostname);
+            this.gbRCON.Location = new System.Drawing.Point(12, 149);
+            this.gbRCON.Name = "gbRCON";
+            this.gbRCON.Size = new System.Drawing.Size(447, 133);
+            this.gbRCON.TabIndex = 6;
+            this.gbRCON.TabStop = false;
+            this.gbRCON.Text = "RCON";
+            // 
+            // tbRCONHostname
+            // 
+            this.tbRCONHostname.Location = new System.Drawing.Point(87, 23);
+            this.tbRCONHostname.Name = "tbRCONHostname";
+            this.tbRCONHostname.Size = new System.Drawing.Size(268, 20);
+            this.tbRCONHostname.TabIndex = 7;
+            // 
+            // lblRCONHostname
+            // 
+            this.lblRCONHostname.AutoSize = true;
+            this.lblRCONHostname.Location = new System.Drawing.Point(11, 26);
+            this.lblRCONHostname.Name = "lblRCONHostname";
+            this.lblRCONHostname.Size = new System.Drawing.Size(70, 13);
+            this.lblRCONHostname.TabIndex = 6;
+            this.lblRCONHostname.Text = "Hostname/IP";
+            // 
+            // tbRCONPort
+            // 
+            this.tbRCONPort.Location = new System.Drawing.Point(88, 49);
+            this.tbRCONPort.Name = "tbRCONPort";
+            this.tbRCONPort.Size = new System.Drawing.Size(72, 20);
+            this.tbRCONPort.TabIndex = 9;
+            // 
+            // lblRCONPort
+            // 
+            this.lblRCONPort.AutoSize = true;
+            this.lblRCONPort.Location = new System.Drawing.Point(55, 52);
+            this.lblRCONPort.Name = "lblRCONPort";
+            this.lblRCONPort.Size = new System.Drawing.Size(26, 13);
+            this.lblRCONPort.TabIndex = 8;
+            this.lblRCONPort.Text = "Port";
+            // 
+            // tbRCONPassword
+            // 
+            this.tbRCONPassword.Location = new System.Drawing.Point(88, 75);
+            this.tbRCONPassword.Name = "tbRCONPassword";
+            this.tbRCONPassword.PasswordChar = '*';
+            this.tbRCONPassword.Size = new System.Drawing.Size(128, 20);
+            this.tbRCONPassword.TabIndex = 11;
+            // 
+            // lblRCONPassword
+            // 
+            this.lblRCONPassword.AutoSize = true;
+            this.lblRCONPassword.Location = new System.Drawing.Point(28, 78);
+            this.lblRCONPassword.Name = "lblRCONPassword";
+            this.lblRCONPassword.Size = new System.Drawing.Size(53, 13);
+            this.lblRCONPassword.TabIndex = 10;
+            this.lblRCONPassword.Text = "Password";
+            // 
+            // cbRCONConnect
+            // 
+            this.cbRCONConnect.AutoSize = true;
+            this.cbRCONConnect.Location = new System.Drawing.Point(87, 101);
+            this.cbRCONConnect.Name = "cbRCONConnect";
+            this.cbRCONConnect.Size = new System.Drawing.Size(106, 17);
+            this.cbRCONConnect.TabIndex = 6;
+            this.cbRCONConnect.Text = "Connect on Start";
+            this.cbRCONConnect.UseVisualStyleBackColor = true;
             // 
             // frmOptions
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(456, 179);
-            this.Controls.Add(this.cbRewindOn);
-            this.Controls.Add(this.btnBrowse);
+            this.ClientSize = new System.Drawing.Size(471, 337);
+            this.Controls.Add(this.gbRCON);
+            this.Controls.Add(this.gbGeneral);
             this.Controls.Add(this.btnCancel);
-            this.Controls.Add(this.tbPath);
-            this.Controls.Add(this.lblPath);
             this.Controls.Add(this.btnOK);
             this.Name = "frmOptions";
             this.Text = "Options";
             this.Load += new System.EventHandler(this.frmOptions_Load);
+            this.gbGeneral.ResumeLayout(false);
+            this.gbGeneral.PerformLayout();
+            this.gbRCON.ResumeLayout(false);
+            this.gbRCON.PerformLayout();
             this.ResumeLayout(false);
-            this.PerformLayout();
 
         }
 
         #endregion
 
         private System.Windows.Forms.Button btnOK;
-        private System.Windows.Forms.Label lblPath;
-        private System.Windows.Forms.TextBox tbPath;
+        private System.Windows.Forms.Label lblGeneralPath;
+        private System.Windows.Forms.TextBox tbGeneralPath;
         private System.Windows.Forms.Button btnCancel;
         private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog1;
-        private System.Windows.Forms.Button btnBrowse;
-        private System.Windows.Forms.CheckBox cbRewindOn;
+        private System.Windows.Forms.Button btnGeneralBrowse;
+        private System.Windows.Forms.CheckBox cbGeneralRewindOn;
+        private System.Windows.Forms.GroupBox gbGeneral;
+        private System.Windows.Forms.GroupBox gbRCON;
+        private System.Windows.Forms.CheckBox cbRCONConnect;
+        private System.Windows.Forms.TextBox tbRCONPassword;
+        private System.Windows.Forms.Label lblRCONPassword;
+        private System.Windows.Forms.TextBox tbRCONPort;
+        private System.Windows.Forms.Label lblRCONPort;
+        private System.Windows.Forms.TextBox tbRCONHostname;
+        private System.Windows.Forms.Label lblRCONHostname;
     }
 }

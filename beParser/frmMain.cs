@@ -27,8 +27,14 @@ namespace beParser
         private ConcurrentQueue<string> rconLogQueue = new ConcurrentQueue<string>();
 
         // public
-        public bool rewindOn = false;
+        // options
         public string basePath;
+        public bool rewindOn = false;
+        public string rconHostname;
+        public string rconPort;
+        public string rconPassword;
+        public bool rconConnect;
+        // end options
         public Dictionary<string, string> playerToGuid = new Dictionary<string, string>();
         public Dictionary<string, string> uidToPlayer = new Dictionary<string, string>();
         public Dictionary<int, string> slotToIP = new Dictionary<int, string>();
@@ -648,12 +654,6 @@ namespace beParser
             }
         }
 
-        private void cbRewindOn_CheckedChanged(object sender, EventArgs e)
-        {
-            rewindOn = cbRewindOn.Checked;
-            SaveSettings();
-        }
-
         #endregion
 
         #region Internal helper functions
@@ -859,16 +859,33 @@ namespace beParser
 
         internal void LoadSettings()
         {
+            // General
             basePath = iniFile.GetValue("General", "basePath", @"c:\set\me\please");
             rewindOn = iniFile.GetValue("General", "rewindOn", false);
 
+            // RCON
+            rconHostname = iniFile.GetValue("RCON", "rconHostname", "127.0.0.1");
+            rconPort = iniFile.GetValue("RCON", "rconPort", "2302");
+            rconPassword = iniFile.GetValue("RCON", "rconPassword", "PASSWORD");
+            rconConnect = iniFile.GetValue("RCON", "rconConnect", false);
+
             cbRewindOn.Checked = rewindOn;
+            cbConnect.Checked = rconConnect;
         }
 
         internal void SaveSettings()
         {
+            // General
             iniFile.SetValue("General", "basePath", basePath);
             iniFile.SetValue("General", "rewindOn", rewindOn);
+
+            // RCON
+            iniFile.SetValue("RCON", "rconHostname", rconHostname);
+            iniFile.SetValue("RCON", "rconPort", rconPort);
+            iniFile.SetValue("RCON", "rconPassword", rconPassword);
+            iniFile.SetValue("RCON", "rconConnect", rconConnect);
+
+            // write to file
             iniFile.Flush();
         }
 

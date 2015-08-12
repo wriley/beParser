@@ -45,6 +45,7 @@
             this.cbRewindOn = new System.Windows.Forms.CheckBox();
             this.label1 = new System.Windows.Forms.Label();
             this.lblLinesQueued = new System.Windows.Forms.Label();
+            this.cbConnect = new System.Windows.Forms.CheckBox();
             this.menuStrip1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
             this.tableLayoutPanel3.SuspendLayout();
@@ -190,6 +191,7 @@
             this.flowLayoutPanel1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
             this.flowLayoutPanel1.Controls.Add(this.btnStartStop);
             this.flowLayoutPanel1.Controls.Add(this.cbRewindOn);
+            this.flowLayoutPanel1.Controls.Add(this.cbConnect);
             this.flowLayoutPanel1.Controls.Add(this.label1);
             this.flowLayoutPanel1.Controls.Add(this.lblLinesQueued);
             this.flowLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -207,12 +209,11 @@
             this.cbRewindOn.TabIndex = 1;
             this.cbRewindOn.Text = "Rewind";
             this.cbRewindOn.UseVisualStyleBackColor = true;
-            this.cbRewindOn.CheckedChanged += new System.EventHandler(this.cbRewindOn_CheckedChanged);
             // 
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(152, 0);
+            this.label1.Location = new System.Drawing.Point(257, 0);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(97, 13);
             this.label1.TabIndex = 10;
@@ -221,11 +222,21 @@
             // lblLinesQueued
             // 
             this.lblLinesQueued.AutoSize = true;
-            this.lblLinesQueued.Location = new System.Drawing.Point(255, 0);
+            this.lblLinesQueued.Location = new System.Drawing.Point(360, 0);
             this.lblLinesQueued.Name = "lblLinesQueued";
             this.lblLinesQueued.Size = new System.Drawing.Size(13, 13);
             this.lblLinesQueued.TabIndex = 11;
             this.lblLinesQueued.Text = "0";
+            // 
+            // cbConnect
+            // 
+            this.cbConnect.AutoSize = true;
+            this.cbConnect.Location = new System.Drawing.Point(152, 3);
+            this.cbConnect.Name = "cbConnect";
+            this.cbConnect.Size = new System.Drawing.Size(99, 17);
+            this.cbConnect.TabIndex = 12;
+            this.cbConnect.Text = "RCON Enabled";
+            this.cbConnect.UseVisualStyleBackColor = true;
             // 
             // frmMain
             // 
@@ -268,6 +279,7 @@
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator1;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Label lblLinesQueued;
+        private System.Windows.Forms.CheckBox cbConnect;
     }
 }
 

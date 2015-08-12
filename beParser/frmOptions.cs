@@ -23,8 +23,15 @@ namespace beParser
 
         private void frmOptions_Load(object sender, EventArgs e)
         {
-            tbPath.Text = parentForm.basePath;
-            cbRewindOn.Checked = parentForm.rewindOn;
+            // General
+            tbGeneralPath.Text = parentForm.basePath;
+            cbGeneralRewindOn.Checked = parentForm.rewindOn;
+
+            // RCON
+            tbRCONHostname.Text = parentForm.rconHostname;
+            tbRCONPort.Text = parentForm.rconPort;
+            tbRCONPassword.Text = parentForm.rconPassword;
+            cbRCONConnect.Checked = parentForm.rconConnect;
         }
 
         private void btnBrowse_Click(object sender, EventArgs e)
@@ -32,15 +39,28 @@ namespace beParser
             folderBrowserDialog1.ShowDialog(this);
             if(folderBrowserDialog1.SelectedPath.Length > 0)
             {
-                tbPath.Text = folderBrowserDialog1.SelectedPath;
+                tbGeneralPath.Text = folderBrowserDialog1.SelectedPath;
             }
         }
 
         private void btnOK_Click(object sender, EventArgs e)
         {
-            parentForm.rewindOn = cbRewindOn.Checked;
-            parentForm.basePath = tbPath.Text;
+            // General
+            parentForm.rewindOn = cbGeneralRewindOn.Checked;
+            parentForm.basePath = tbGeneralPath.Text;
+
+            // RCON
+            parentForm.rconHostname = tbRCONHostname.Text;
+            parentForm.rconPort = tbRCONPort.Text;
+            parentForm.rconPassword = tbRCONPassword.Text;
+            parentForm.rconConnect = cbRCONConnect.Checked;
+
+            // Save
             parentForm.SaveSettings();
+
+            // Update parent form controls
+            parentForm.LoadSettings();
+
             Close();
         }
 
