@@ -542,7 +542,7 @@ namespace beParser
         private void DoLinesQueued()
         {
             int linesCount = 0;
-            int lastLinesCount = 0;
+            int lastLinesCount = -1;
             int doPrint = 0;
             int lpsCurr = 0;
             int lpsLast = 0;
@@ -557,6 +557,10 @@ namespace beParser
                     linesCount += lineQueues[lq.Key].Count;
                 }
 
+                if(lastLinesCount == -1)
+                {
+                    lastLinesCount = linesCount;
+                }
 
                 try
                 {
