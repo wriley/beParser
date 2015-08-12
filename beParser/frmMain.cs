@@ -7,18 +7,17 @@ using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using System.Reflection;
 using System.Linq;
-using System.Xml.Linq;
 using System.Xml.Serialization;
 using System.Text;
-using Nini.Config;
+using STA.Settings;
 
 namespace beParser
 {
     public partial class frmMain : Form
     {
         // private
-        private string iniFile = "beParser.ini";
-        private string exePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+        private string iniFilePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\beParser.ini";
+        private INIFile iniFile = null;
         private bool started = false;
         private List<Producer> producerObjects = new List<Producer>();
         private List<Consumer> consumerObjects = new List<Consumer>();
@@ -99,19 +98,22 @@ namespace beParser
 
         private void fmrMain_Load(object sender, EventArgs e)
         {
+            try {
+                iniFile = new INIFile(iniFilePath);
+            } catch (Exception ex)
+            {
+                MessageBox.Show("Error accessing INI file: " + ex.Message);
+                return;
+            }
+
             LoadSettings();
 
-            Console.WriteLine("basePath: " + basePath);
-            Console.WriteLine("rewindOn: " + rewindOn.ToString());
-
-            /*
             if (!Directory.Exists(basePath))
             {
                 MessageBox.Show("You need to set the path to your BattlEye folder");
                 frmOptions frmOptions = new frmOptions(this);
                 frmOptions.Show(this);
             }
-            */
             
             Run();
         }
@@ -815,42 +817,19 @@ namespace beParser
             }
         }
 
-        internal void SaveSettings()
-        {
-            try
-            {
-                IConfigSource source = new IniConfigSource(exePath + "\\" + iniFile);
-                source.Configs["Options"].Set("basePath", basePath);
-                source.Configs["Options"].Set("rewindOn", rewindOn);
-                source.Save();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error saving options to " + iniFile + ": " + ex.Message);
-                return;
-            }
-        }
-
         internal void LoadSettings()
         {
-            if(!File.Exists(exePath + "\\" + iniFile))
-            {
-                return;
-            }
+            basePath = iniFile.GetValue("General", "basePath", @"c:\set\me\please");
+            rewindOn = iniFile.GetValue("General", "rewindOn", false);
 
-            try
-            {
-                IConfigSource source = new IniConfigSource(exePath + "\\" + iniFile);
-                basePath = source.Configs["Options"].Get("basePath");
-                rewindOn = Convert.ToBoolean(source.Configs["Options"].Get("rewindOn"));
+            cbRewindOn.Checked = rewindOn;
+        }
 
-                cbRewindOn.Checked = rewindOn;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error loading options from " + iniFile + ": " + ex.Message);
-                return;
-            }
+        internal void SaveSettings()
+        {
+            iniFile.SetValue("General", "basePath", basePath);
+            iniFile.SetValue("General", "rewindOn", rewindOn);
+            iniFile.Flush();
         }
 
         #endregion
