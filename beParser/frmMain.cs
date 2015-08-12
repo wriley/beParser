@@ -927,15 +927,15 @@ namespace beParser
                     _fs = File.Open(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                     _sr = new StreamReader(_fs);
                     Int64 fileSize = GetFileSize();
-                    lastSize = fileSize;
+
                     if (!_parentForm.rewindOn && !_fileRotated)
                     {
                         _sr.BaseStream.Seek(fileSize, SeekOrigin.Begin);
                     }
+
                     string line;
                     ThreadLogDebug(Path.GetFileName(_filePath) + " is now open");
-
-                    if (_fileRotated) { _fileRotated = false; }
+                    _fileRotated = false;
 
                     while (!_shouldStop && !_fileRotated)
                     {
@@ -944,6 +944,7 @@ namespace beParser
                         {
                             // file has shrunk, assume it's rotated
                             _fileRotated = true;
+                            lastSize = fileSize;
                         }
                         else
                         {
@@ -999,7 +1000,7 @@ namespace beParser
                 catch (Exception)
                 {
                     // Unable to open file so wait and try again
-                    SpinAndWait(5000);
+                    SpinAndWait(1000);
                 }
                 finally
                 {
