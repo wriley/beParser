@@ -25,6 +25,7 @@ namespace beParser
         private ConcurrentQueue<string> debugLogQueue = new ConcurrentQueue<string>();
         private ConcurrentQueue<string> outputLogQueue = new ConcurrentQueue<string>();
         private ConcurrentQueue<string> rconLogQueue = new ConcurrentQueue<string>();
+        private Int32 maxLines = 10000;
 
         // public
         // options
@@ -337,6 +338,14 @@ namespace beParser
                 else
                 {
                     rtbDebug.Text += s + Environment.NewLine;
+                    
+                    if(rtbDebug.Lines.Length > maxLines)
+                    {
+                        string[] newLines = new string[maxLines];
+                        Array.Copy(rtbDebug.Lines, 1, newLines, 0, maxLines);
+                        rtbDebug.Lines = newLines;
+                    }
+
                     rtbDebug.SelectionStart = rtbDebug.Text.Length;
                     rtbDebug.ScrollToCaret();
                 }
@@ -362,6 +371,14 @@ namespace beParser
                 else
                 {
                     rtbOutput.Text += s + Environment.NewLine;
+
+                    if (rtbOutput.Lines.Length > maxLines)
+                    {
+                        string[] newLines = new string[maxLines];
+                        Array.Copy(rtbOutput.Lines, 1, newLines, 0, maxLines);
+                        rtbOutput.Lines = newLines;
+                    }
+
                     rtbOutput.SelectionStart = rtbOutput.Text.Length;
                     rtbOutput.ScrollToCaret();
                 }
@@ -387,6 +404,14 @@ namespace beParser
                 else
                 {
                     rtbRcon.Text += s + Environment.NewLine;
+
+                    if (rtbRcon.Lines.Length > maxLines)
+                    {
+                        string[] newLines = new string[maxLines];
+                        Array.Copy(rtbRcon.Lines, 1, newLines, 0, maxLines);
+                        rtbRcon.Lines = newLines;
+                    }
+
                     rtbRcon.SelectionStart = rtbOutput.Text.Length;
                     rtbRcon.ScrollToCaret();
                 }
@@ -558,9 +583,9 @@ namespace beParser
             for (;;)
             {
                 linesCount = 0;
-                foreach (var lq in lineQueues)
+                foreach (var lqKey in lineQueues.Keys)
                 {
-                    linesCount += lineQueues[lq.Key].Count;
+                    linesCount += lineQueues[lqKey].Count;
                 }
 
                 if(lastLinesCount == -1)
