@@ -43,9 +43,9 @@
             this.tableLayoutPanel3 = new System.Windows.Forms.TableLayoutPanel();
             this.flowLayoutPanel1 = new System.Windows.Forms.FlowLayoutPanel();
             this.cbRewindOn = new System.Windows.Forms.CheckBox();
+            this.cbConnect = new System.Windows.Forms.CheckBox();
             this.label1 = new System.Windows.Forms.Label();
             this.lblLinesQueued = new System.Windows.Forms.Label();
-            this.cbConnect = new System.Windows.Forms.CheckBox();
             this.menuStrip1.SuspendLayout();
             this.tableLayoutPanel2.SuspendLayout();
             this.tableLayoutPanel3.SuspendLayout();
@@ -210,10 +210,21 @@
             this.cbRewindOn.Text = "Rewind";
             this.cbRewindOn.UseVisualStyleBackColor = true;
             // 
+            // cbConnect
+            // 
+            this.cbConnect.AutoSize = true;
+            this.cbConnect.Location = new System.Drawing.Point(152, 3);
+            this.cbConnect.Name = "cbConnect";
+            this.cbConnect.Size = new System.Drawing.Size(100, 17);
+            this.cbConnect.TabIndex = 12;
+            this.cbConnect.Text = "RCON Connect";
+            this.cbConnect.UseVisualStyleBackColor = true;
+            this.cbConnect.CheckedChanged += new System.EventHandler(this.cbConnect_CheckedChanged);
+            // 
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(257, 0);
+            this.label1.Location = new System.Drawing.Point(258, 0);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(97, 13);
             this.label1.TabIndex = 10;
@@ -222,21 +233,11 @@
             // lblLinesQueued
             // 
             this.lblLinesQueued.AutoSize = true;
-            this.lblLinesQueued.Location = new System.Drawing.Point(360, 0);
+            this.lblLinesQueued.Location = new System.Drawing.Point(361, 0);
             this.lblLinesQueued.Name = "lblLinesQueued";
             this.lblLinesQueued.Size = new System.Drawing.Size(13, 13);
             this.lblLinesQueued.TabIndex = 11;
             this.lblLinesQueued.Text = "0";
-            // 
-            // cbConnect
-            // 
-            this.cbConnect.AutoSize = true;
-            this.cbConnect.Location = new System.Drawing.Point(152, 3);
-            this.cbConnect.Name = "cbConnect";
-            this.cbConnect.Size = new System.Drawing.Size(99, 17);
-            this.cbConnect.TabIndex = 12;
-            this.cbConnect.Text = "RCON Enabled";
-            this.cbConnect.UseVisualStyleBackColor = true;
             // 
             // frmMain
             // 

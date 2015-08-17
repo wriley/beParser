@@ -10,12 +10,14 @@ using System.Linq;
 using System.Xml.Serialization;
 using System.Text;
 using STA.Settings;
+using BattleNET;
+using System.Net;
 
 namespace beParser
 {
     public partial class frmMain : Form
     {
-        // private
+        #region private variables
         private string iniFilePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\beParser.ini";
         private INIFile iniFile = null;
         private bool started = false;
@@ -26,15 +28,17 @@ namespace beParser
         private ConcurrentQueue<string> outputLogQueue = new ConcurrentQueue<string>();
         private ConcurrentQueue<string> rconLogQueue = new ConcurrentQueue<string>();
         private Int32 maxLines = 10000;
+        private BattlEyeClient beClient;
+        private bool connected = false;
+        #endregion
 
-        // public
+        #region public variables
         // options
         public string basePath;
         public bool rewindOn = false;
-        public string rconHostname;
-        public string rconPort;
-        public string rconPassword;
+        public BattlEyeLoginCredentials loginCredentials;
         public bool rconConnect;
+        public bool rconServerConsole;
         // end options
         public Dictionary<string, string> playerToGuid = new Dictionary<string, string>();
         public Dictionary<string, string> uidToPlayer = new Dictionary<string, string>();
@@ -45,6 +49,7 @@ namespace beParser
         public Dictionary<string, List<FileCheck>> fileChecks = new Dictionary<string, List<FileCheck>>();
         public Dictionary<string, int> ruleCounts = new Dictionary<string, int>();
         public Dictionary<string, string> bufRE = new Dictionary<string, string>();
+        #endregion
 
         #region Classes/Structs
 
@@ -170,20 +175,27 @@ namespace beParser
                     {
                         fullPath += "//" + file + ".log";
                     }
-                    Producer w = new Producer(this, fullPath, file);
-                    producerObjects.Add(w);
-                    Thread t = new Thread(w.DoWork);
-                    workerThreads.Add(t);
-                    t.IsBackground = true;
-                    t.Start();
+                    if (file == "server_console" && rconServerConsole)
+                    {
+                        LogDebug("server_console set for RCON");
+                    }
+                    else
+                    {
+                        Producer w = new Producer(this, fullPath, file);
+                        producerObjects.Add(w);
+                        Thread t = new Thread(w.DoWork);
+                        workerThreads.Add(t);
+                        t.IsBackground = true;
+                        t.Start();
+                    }
                 }
 
                 LogDebug("Starting producer and consumer threads");
                 // create and start consumer threads
-                foreach (var lineQueue in lineQueues)
+                foreach (var lqKey in lineQueues.Keys)
                 {
-                    ConcurrentQueue<string> lq = lineQueues[lineQueue.Key];
-                    Consumer c = new Consumer(this, lineQueue.Key);
+                    ConcurrentQueue<string> lq = lineQueues[lqKey];
+                    Consumer c = new Consumer(this, lqKey);
                     consumerObjects.Add(c);
                     Thread t = new Thread(c.DoWork);
                     workerThreads.Add(t);
@@ -319,6 +331,68 @@ namespace beParser
             }
         }
 
+        private void BEConnect()
+        {
+            if (loginCredentials.Host == null || loginCredentials.Password == "" || loginCredentials.Port == 0)
+            {
+                return;
+            }
+            LogDebug(string.Format("RCON attempting connection to {0}:{1}", loginCredentials.Host, loginCredentials.Port));
+            beClient = new BattlEyeClient(loginCredentials);
+            beClient.BattlEyeMessageReceived += BattlEyeMessageReceived;
+            beClient.BattlEyeConnected += BattlEyeConnected;
+            beClient.BattlEyeDisconnected += BattlEyeDisconnected;
+            beClient.ReconnectOnPacketLoss = true;
+            beClient.Connect();
+        }
+
+        private void BEDisconnect()
+        {
+            if (beClient != null)
+            {
+                beClient.Disconnect();
+            }
+        }
+
+        private void BattlEyeConnected(BattlEyeConnectEventArgs args)
+        {
+            LogDebug("RCON " + args.Message);
+            if (beClient.Connected)
+            {
+                cbConnect.Checked = true;
+                connected = true;
+            }
+            else
+            {
+                cbConnect.Checked = false;
+                connected = false;
+            }
+        }
+
+        private void BattlEyeDisconnected(BattlEyeDisconnectEventArgs args)
+        {
+            LogDebug("RCON " + args.Message);
+            cbConnect.Checked = false;
+            connected = false;
+        }
+
+        private void BattlEyeMessageReceived(BattlEyeMessageEventArgs args)
+        {
+            if (rconServerConsole)
+            {
+                string message = args.Message;
+                if (
+                    message.StartsWith("Player #") ||
+                    message.StartsWith("Verified GUID (")
+                    )
+                {
+                    string msg = DateTime.Now.ToString("HH:mm:ss") + " BattlEye Server: " + message;
+                    AddLineQueueLine("server_console", msg);
+                    LogDebug("RCON server_console: " + msg);
+                }
+            }
+        }
+
         #endregion
 
         #region Delegates
@@ -338,8 +412,8 @@ namespace beParser
                 else
                 {
                     rtbDebug.Text += s + Environment.NewLine;
-                    
-                    if(rtbDebug.Lines.Length > maxLines)
+
+                    if (rtbDebug.Lines.Length > maxLines)
                     {
                         string[] newLines = new string[maxLines];
                         Array.Copy(rtbDebug.Lines, 1, newLines, 0, maxLines);
@@ -451,6 +525,11 @@ namespace beParser
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             btnStartStop.Enabled = false;
+            if (connected)
+            {
+                LogDebug("Stopping RCON connection");
+                BEDisconnect();
+            }
             LogDebug("Stopping producer and consumer threads");
 
             // Check if any worker threads are running
@@ -588,7 +667,7 @@ namespace beParser
                     linesCount += lineQueues[lqKey].Count;
                 }
 
-                if(lastLinesCount == -1)
+                if (lastLinesCount == -1)
                 {
                     lastLinesCount = linesCount;
                 }
@@ -602,7 +681,7 @@ namespace beParser
                     lpsCurr = 0;
                 }
 
-                if(lpsCurr > lpsMax)
+                if (lpsCurr > lpsMax)
                 {
                     lpsMax = lpsCurr;
                 }
@@ -640,6 +719,7 @@ namespace beParser
                     started = false;
                     btnStartStop.Text = "Start";
                     cbRewindOn.Enabled = true;
+                    cbConnect.Enabled = true;
                 }
             }
             else
@@ -649,6 +729,7 @@ namespace beParser
                     started = true;
                     btnStartStop.Text = "Stop";
                     cbRewindOn.Enabled = false;
+                    cbConnect.Enabled = false;
                 }
             }
 
@@ -677,6 +758,23 @@ namespace beParser
                 frmOptions frmOptions = new frmOptions(this);
                 frmOptions.Show(this);
             }
+        }
+
+        private void cbConnect_CheckedChanged(object sender, EventArgs e)
+        {
+            cbConnect.Enabled = false;
+
+            if (cbConnect.Checked && !connected)
+            {
+                BEConnect();
+            }
+
+            if(!cbConnect.Checked && connected)
+            {
+                BEDisconnect();
+            }
+
+            cbConnect.Enabled = true;
         }
 
         #endregion
@@ -882,6 +980,49 @@ namespace beParser
             }
         }
 
+        internal string GetLoginCredentials(string s)
+        {
+            switch (s)
+            {
+                case "Host":
+                    return loginCredentials.Host.ToString();
+                case "Port":
+                    return loginCredentials.Port.ToString();
+                case "Password":
+                    return loginCredentials.Password;
+                default:
+                    return "";
+            }
+        }
+
+        internal void SetLoginCredentials(string key, string val)
+        {
+            switch (key)
+            {
+                case "Host":
+                    try
+                    {
+                        loginCredentials.Host = Dns.GetHostAddresses(val)[0];
+                    }
+                    catch
+                    {
+                    }
+                    break;
+                case "Port":
+                    try
+                    {
+                        loginCredentials.Port = Convert.ToInt16(val);
+                    }
+                    catch { }
+                    break;
+                case "Password":
+                    loginCredentials.Password = val;
+                    break;
+                default:
+                    break;
+            }
+        }
+
         internal void LoadSettings()
         {
             // General
@@ -889,13 +1030,25 @@ namespace beParser
             rewindOn = iniFile.GetValue("General", "rewindOn", false);
 
             // RCON
-            rconHostname = iniFile.GetValue("RCON", "rconHostname", "127.0.0.1");
-            rconPort = iniFile.GetValue("RCON", "rconPort", "2302");
-            rconPassword = iniFile.GetValue("RCON", "rconPassword", "PASSWORD");
+            try
+            {
+                loginCredentials.Host = Dns.GetHostAddresses(iniFile.GetValue("RCON", "rconHostname", "127.0.0.1"))[0];
+            }
+            catch { }
+            try
+            {
+                loginCredentials.Port = Convert.ToInt16(iniFile.GetValue("RCON", "rconPort", "2302"));
+            }
+            catch { }
+            loginCredentials.Password = iniFile.GetValue("RCON", "rconPassword", "PASSWORD");
             rconConnect = iniFile.GetValue("RCON", "rconConnect", false);
+            rconServerConsole = iniFile.GetValue("RCON", "rconServerConsole", false);
 
             cbRewindOn.Checked = rewindOn;
-            cbConnect.Checked = rconConnect;
+            if (!connected && rconConnect)
+            {
+                cbConnect.Checked = rconConnect;
+            }
         }
 
         internal void SaveSettings()
@@ -905,10 +1058,11 @@ namespace beParser
             iniFile.SetValue("General", "rewindOn", rewindOn);
 
             // RCON
-            iniFile.SetValue("RCON", "rconHostname", rconHostname);
-            iniFile.SetValue("RCON", "rconPort", rconPort);
-            iniFile.SetValue("RCON", "rconPassword", rconPassword);
+            iniFile.SetValue("RCON", "rconHostname", loginCredentials.Host.ToString());
+            iniFile.SetValue("RCON", "rconPort", loginCredentials.Port);
+            iniFile.SetValue("RCON", "rconPassword", loginCredentials.Password);
             iniFile.SetValue("RCON", "rconConnect", rconConnect);
+            iniFile.SetValue("RCON", "rconServerConsole", rconServerConsole);
 
             // write to file
             iniFile.Flush();
@@ -1133,7 +1287,7 @@ namespace beParser
         private string rule;
         private Int32 unixtime = 0;
         private string evt;
-        private Regex server_console1 = new Regex(@"\d+:\d+:\d+ (?:BattlEye Server: Player #(?<slot>\d+) (?<player>.*?) (?:- GUID: (?<guid>[a-f0-9]{32}) \(unverified\)|\((?<ip>[0-9.]+?):\d+\) connected)|Player (?<player>.*?) (?:kicked off by BattlEye: (?<evt>Admin Ban)|connected \(id=(?<uid>[0-9AX]+)\)\.|(?<evt>disconnected)\.|kicked off by BattlEye: (?<evt>Global Ban) #[a-f0-9]+)|Player #(?<slot>\d+) (?<player>.*?) \([a-f0-9]{32}\) has been kicked by BattlEye: (?<evt>Invalid GUID)|BattlEye Server: \((?<evt>.*?)\) (?<player>.*?) *: (?<msg>.*)) *$", RegexOptions.Compiled | RegexOptions.Singleline);
+        private Regex server_console1 = new Regex(@"\d+:\d+:\d+ (?:BattlEye Server: Player #(?<slot>\d+) (?<player>.*?) (?:- GUID: (?<guid>[a-f0-9]{32}) \(unverified\)|\((?<ip>[0-9.]+?):\d+\) connected)|(?:BattlEye Server: )?Player #?(?<slot>\d+)?\s?(?<player>.*?) (?:kicked off by BattlEye: (?<evt>Admin Ban)|connected \(id=(?<uid>[0-9AX]+)\)\.|(?<evt>disconnected\.?)|kicked off by BattlEye: (?<evt>Global Ban) #[a-f0-9]+)|Player #(?<slot>\d+) (?<player>.*?) \([a-f0-9]{32}\) has been kicked by BattlEye: (?<evt>Invalid GUID)|BattlEye Server: \((?<evt>.*?)\) (?<player>.*?) *: (?<msg>.*)) *$", RegexOptions.Compiled | RegexOptions.Singleline);
         private Regex publicvariable1 = new Regex(@"([0-9]+\.[0-9]+\.[0-9]+ [0-9]+:[0-9]+:[0-9]+): (.*) \(([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}):[0-9]+\) ([0-9a-z]{32}) - ", RegexOptions.Compiled | RegexOptions.Singleline);
         private Regex otherfiles1 = new Regex(@"(?<date>(?<D>\d+)\.(?<M>\d+)\.(?<Y>\d+) (?<h>\d+):(?<m>\d+):(?<s>\d+)): (?<player>.*?) ?\((?<ip>[0-9.]{7,15}):[0-9]{1,5}\) (?<guid>(?:-|[a-f0-9]{32})) - ", RegexOptions.Compiled | RegexOptions.Singleline);
 
@@ -1201,7 +1355,7 @@ namespace beParser
                                         player = _match1.Groups["player"].Value;
                                         slot = _parentForm.PlayerToSlotGet(player);
                                         _parentForm.playerToSlot.Remove(player);
-                                        if (slot > 0) { _parentForm.slotToIP.Remove(slot); }
+                                        if (slot >= 0) { _parentForm.slotToIP.Remove(slot); }
                                         ThreadLogOutput(_parentForm.GetDateString() + " Player disconnected '" + player + "', deleting slot reference");
                                         break;
                                     case "Global Ban":

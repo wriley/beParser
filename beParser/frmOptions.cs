@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -28,10 +29,11 @@ namespace beParser
             cbGeneralRewindOn.Checked = parentForm.rewindOn;
 
             // RCON
-            tbRCONHostname.Text = parentForm.rconHostname;
-            tbRCONPort.Text = parentForm.rconPort;
-            tbRCONPassword.Text = parentForm.rconPassword;
+            tbRCONHostname.Text = parentForm.GetLoginCredentials("Host");
+            tbRCONPort.Text = parentForm.GetLoginCredentials("Port");
+            tbRCONPassword.Text = parentForm.GetLoginCredentials("Password");
             cbRCONConnect.Checked = parentForm.rconConnect;
+            cbRCONServerConsole.Checked = parentForm.rconServerConsole;
         }
 
         private void btnBrowse_Click(object sender, EventArgs e)
@@ -43,17 +45,18 @@ namespace beParser
             }
         }
 
-        private void btnOK_Click(object sender, EventArgs e)
+        private void btnSave_Click(object sender, EventArgs e)
         {
             // General
             parentForm.rewindOn = cbGeneralRewindOn.Checked;
             parentForm.basePath = tbGeneralPath.Text;
 
             // RCON
-            parentForm.rconHostname = tbRCONHostname.Text;
-            parentForm.rconPort = tbRCONPort.Text;
-            parentForm.rconPassword = tbRCONPassword.Text;
+            parentForm.SetLoginCredentials("Host", tbRCONHostname.Text);
+            parentForm.SetLoginCredentials("Port", tbRCONPort.Text);
+            parentForm.SetLoginCredentials("Password", tbRCONPassword.Text);
             parentForm.rconConnect = cbRCONConnect.Checked;
+            parentForm.rconServerConsole = cbRCONServerConsole.Checked;
 
             // Save
             parentForm.SaveSettings();

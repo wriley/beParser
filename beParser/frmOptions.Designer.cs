@@ -28,7 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.btnOK = new System.Windows.Forms.Button();
+            this.btnSave = new System.Windows.Forms.Button();
             this.lblGeneralPath = new System.Windows.Forms.Label();
             this.tbGeneralPath = new System.Windows.Forms.TextBox();
             this.btnCancel = new System.Windows.Forms.Button();
@@ -37,26 +37,27 @@
             this.cbGeneralRewindOn = new System.Windows.Forms.CheckBox();
             this.gbGeneral = new System.Windows.Forms.GroupBox();
             this.gbRCON = new System.Windows.Forms.GroupBox();
-            this.tbRCONHostname = new System.Windows.Forms.TextBox();
-            this.lblRCONHostname = new System.Windows.Forms.Label();
-            this.tbRCONPort = new System.Windows.Forms.TextBox();
-            this.lblRCONPort = new System.Windows.Forms.Label();
+            this.cbRCONConnect = new System.Windows.Forms.CheckBox();
             this.tbRCONPassword = new System.Windows.Forms.TextBox();
             this.lblRCONPassword = new System.Windows.Forms.Label();
-            this.cbRCONConnect = new System.Windows.Forms.CheckBox();
+            this.tbRCONPort = new System.Windows.Forms.TextBox();
+            this.lblRCONPort = new System.Windows.Forms.Label();
+            this.tbRCONHostname = new System.Windows.Forms.TextBox();
+            this.lblRCONHostname = new System.Windows.Forms.Label();
+            this.cbRCONServerConsole = new System.Windows.Forms.CheckBox();
             this.gbGeneral.SuspendLayout();
             this.gbRCON.SuspendLayout();
             this.SuspendLayout();
             // 
-            // btnOK
+            // btnSave
             // 
-            this.btnOK.Location = new System.Drawing.Point(153, 302);
-            this.btnOK.Name = "btnOK";
-            this.btnOK.Size = new System.Drawing.Size(75, 23);
-            this.btnOK.TabIndex = 0;
-            this.btnOK.Text = "OK";
-            this.btnOK.UseVisualStyleBackColor = true;
-            this.btnOK.Click += new System.EventHandler(this.btnOK_Click);
+            this.btnSave.Location = new System.Drawing.Point(162, 319);
+            this.btnSave.Name = "btnSave";
+            this.btnSave.Size = new System.Drawing.Size(75, 23);
+            this.btnSave.TabIndex = 0;
+            this.btnSave.Text = "Save";
+            this.btnSave.UseVisualStyleBackColor = true;
+            this.btnSave.Click += new System.EventHandler(this.btnSave_Click);
             // 
             // lblGeneralPath
             // 
@@ -76,7 +77,7 @@
             // 
             // btnCancel
             // 
-            this.btnCancel.Location = new System.Drawing.Point(234, 302);
+            this.btnCancel.Location = new System.Drawing.Point(243, 319);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(75, 23);
             this.btnCancel.TabIndex = 3;
@@ -119,6 +120,7 @@
             // 
             // gbRCON
             // 
+            this.gbRCON.Controls.Add(this.cbRCONServerConsole);
             this.gbRCON.Controls.Add(this.cbRCONConnect);
             this.gbRCON.Controls.Add(this.tbRCONPassword);
             this.gbRCON.Controls.Add(this.lblRCONPassword);
@@ -128,42 +130,20 @@
             this.gbRCON.Controls.Add(this.lblRCONHostname);
             this.gbRCON.Location = new System.Drawing.Point(12, 149);
             this.gbRCON.Name = "gbRCON";
-            this.gbRCON.Size = new System.Drawing.Size(447, 133);
+            this.gbRCON.Size = new System.Drawing.Size(447, 152);
             this.gbRCON.TabIndex = 6;
             this.gbRCON.TabStop = false;
             this.gbRCON.Text = "RCON";
             // 
-            // tbRCONHostname
+            // cbRCONConnect
             // 
-            this.tbRCONHostname.Location = new System.Drawing.Point(87, 23);
-            this.tbRCONHostname.Name = "tbRCONHostname";
-            this.tbRCONHostname.Size = new System.Drawing.Size(268, 20);
-            this.tbRCONHostname.TabIndex = 7;
-            // 
-            // lblRCONHostname
-            // 
-            this.lblRCONHostname.AutoSize = true;
-            this.lblRCONHostname.Location = new System.Drawing.Point(11, 26);
-            this.lblRCONHostname.Name = "lblRCONHostname";
-            this.lblRCONHostname.Size = new System.Drawing.Size(70, 13);
-            this.lblRCONHostname.TabIndex = 6;
-            this.lblRCONHostname.Text = "Hostname/IP";
-            // 
-            // tbRCONPort
-            // 
-            this.tbRCONPort.Location = new System.Drawing.Point(88, 49);
-            this.tbRCONPort.Name = "tbRCONPort";
-            this.tbRCONPort.Size = new System.Drawing.Size(72, 20);
-            this.tbRCONPort.TabIndex = 9;
-            // 
-            // lblRCONPort
-            // 
-            this.lblRCONPort.AutoSize = true;
-            this.lblRCONPort.Location = new System.Drawing.Point(55, 52);
-            this.lblRCONPort.Name = "lblRCONPort";
-            this.lblRCONPort.Size = new System.Drawing.Size(26, 13);
-            this.lblRCONPort.TabIndex = 8;
-            this.lblRCONPort.Text = "Port";
+            this.cbRCONConnect.AutoSize = true;
+            this.cbRCONConnect.Location = new System.Drawing.Point(88, 101);
+            this.cbRCONConnect.Name = "cbRCONConnect";
+            this.cbRCONConnect.Size = new System.Drawing.Size(145, 17);
+            this.cbRCONConnect.TabIndex = 6;
+            this.cbRCONConnect.Text = "Connect on program start";
+            this.cbRCONConnect.UseVisualStyleBackColor = true;
             // 
             // tbRCONPassword
             // 
@@ -182,25 +162,57 @@
             this.lblRCONPassword.TabIndex = 10;
             this.lblRCONPassword.Text = "Password";
             // 
-            // cbRCONConnect
+            // tbRCONPort
             // 
-            this.cbRCONConnect.AutoSize = true;
-            this.cbRCONConnect.Location = new System.Drawing.Point(87, 101);
-            this.cbRCONConnect.Name = "cbRCONConnect";
-            this.cbRCONConnect.Size = new System.Drawing.Size(106, 17);
-            this.cbRCONConnect.TabIndex = 6;
-            this.cbRCONConnect.Text = "Connect on Start";
-            this.cbRCONConnect.UseVisualStyleBackColor = true;
+            this.tbRCONPort.Location = new System.Drawing.Point(88, 49);
+            this.tbRCONPort.Name = "tbRCONPort";
+            this.tbRCONPort.Size = new System.Drawing.Size(72, 20);
+            this.tbRCONPort.TabIndex = 9;
+            // 
+            // lblRCONPort
+            // 
+            this.lblRCONPort.AutoSize = true;
+            this.lblRCONPort.Location = new System.Drawing.Point(55, 52);
+            this.lblRCONPort.Name = "lblRCONPort";
+            this.lblRCONPort.Size = new System.Drawing.Size(26, 13);
+            this.lblRCONPort.TabIndex = 8;
+            this.lblRCONPort.Text = "Port";
+            // 
+            // tbRCONHostname
+            // 
+            this.tbRCONHostname.Location = new System.Drawing.Point(87, 23);
+            this.tbRCONHostname.Name = "tbRCONHostname";
+            this.tbRCONHostname.Size = new System.Drawing.Size(268, 20);
+            this.tbRCONHostname.TabIndex = 7;
+            // 
+            // lblRCONHostname
+            // 
+            this.lblRCONHostname.AutoSize = true;
+            this.lblRCONHostname.Location = new System.Drawing.Point(11, 26);
+            this.lblRCONHostname.Name = "lblRCONHostname";
+            this.lblRCONHostname.Size = new System.Drawing.Size(70, 13);
+            this.lblRCONHostname.TabIndex = 6;
+            this.lblRCONHostname.Text = "Hostname/IP";
+            // 
+            // cbRCONServerConsole
+            // 
+            this.cbRCONServerConsole.AutoSize = true;
+            this.cbRCONServerConsole.Location = new System.Drawing.Point(87, 124);
+            this.cbRCONServerConsole.Name = "cbRCONServerConsole";
+            this.cbRCONServerConsole.Size = new System.Drawing.Size(183, 17);
+            this.cbRCONServerConsole.TabIndex = 12;
+            this.cbRCONServerConsole.Text = "Use RCON for server console log";
+            this.cbRCONServerConsole.UseVisualStyleBackColor = true;
             // 
             // frmOptions
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(471, 337);
+            this.ClientSize = new System.Drawing.Size(471, 354);
             this.Controls.Add(this.gbRCON);
             this.Controls.Add(this.gbGeneral);
             this.Controls.Add(this.btnCancel);
-            this.Controls.Add(this.btnOK);
+            this.Controls.Add(this.btnSave);
             this.Name = "frmOptions";
             this.Text = "Options";
             this.Load += new System.EventHandler(this.frmOptions_Load);
@@ -214,7 +226,7 @@
 
         #endregion
 
-        private System.Windows.Forms.Button btnOK;
+        private System.Windows.Forms.Button btnSave;
         private System.Windows.Forms.Label lblGeneralPath;
         private System.Windows.Forms.TextBox tbGeneralPath;
         private System.Windows.Forms.Button btnCancel;
@@ -230,5 +242,6 @@
         private System.Windows.Forms.Label lblRCONPort;
         private System.Windows.Forms.TextBox tbRCONHostname;
         private System.Windows.Forms.Label lblRCONHostname;
+        private System.Windows.Forms.CheckBox cbRCONServerConsole;
     }
 }
