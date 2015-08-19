@@ -13,7 +13,7 @@ Note: This project is incomplete
  
 # 3 RCON
 * Commands that would be sent to RCON if that functionality existed (TODO)
-* Can be copy/pasted to rcon.pl
+* Can be copy/pasted to rcon.pl (minus the date/time)
 
 # Installation
 * Create a folder and copy [beParser.exe](Install/beParser.exe?raw=true), [BattleNET.dll](Install/BattleNET.dll?raw=true), and [fileChecks.xml](Install/fileChecks.xml?raw=true) there
