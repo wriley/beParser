@@ -135,7 +135,7 @@ namespace beParser
 
             if (!appendLogs)
             {
-                // We're not appending to create/overwrite program log files
+                // We're not appending so create/overwrite program log files
                 try
                 {
                     FileStream fs = new FileStream(logFileOutput, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite);
@@ -294,22 +294,6 @@ namespace beParser
             Thread tLinesQueued = new Thread(DoLinesQueued);
             tLinesQueued.IsBackground = true;
             tLinesQueued.Start();
-
-            // create timer to keep RCON connection open if needed
-            // TODO: make RCON connection functionality into a nice, elegant class
-            var timerRCON = new System.Timers.Timer();
-            timerRCON.AutoReset = true;
-            timerRCON.SynchronizingObject = this;
-            timerRCON.Interval = 5000;
-            timerRCON.Elapsed +=
-                (sender, args) =>
-                {
-                    if (!connected && reconnecting)
-                    {
-                        beClient.Connect();
-                    }
-                };
-            timerRCON.Start();
         }
 
         private bool LoadFileChecks()
@@ -368,7 +352,7 @@ namespace beParser
             beClient.BattlEyeMessageReceived += BattlEyeMessageReceived;
             beClient.BattlEyeConnected += BattlEyeConnected;
             beClient.BattlEyeDisconnected += BattlEyeDisconnected;
-            beClient.ReconnectOnPacketLoss = true;
+            beClient.ReconnectOnPacketLoss = false;
             beClient.Connect();
         }
 
@@ -380,16 +364,36 @@ namespace beParser
             }
         }
 
+        private void BEReconnect()
+        {
+            reconnecting = true;
+            new Thread(new ThreadStart(HandleBEReconnect))
+            {
+                IsBackground = true
+            }.Start();
+        }
+
+        private void HandleBEReconnect()
+        {
+            while(reconnecting && !beClient.Connected)
+            {
+                Thread.Sleep(5000);
+                BEDisconnect();
+                BEConnect();
+            }
+            reconnecting = false;
+        }
+
         private void BattlEyeConnected(BattlEyeConnectEventArgs args)
         {
             switch (args.ConnectionResult)
             {
                 case BattlEyeConnectionResult.Success:
-                    SetConnectChecked(true);
                     connected = true;
                     if (reconnecting)
                     {
                         LogDebug("RCON Reconnected");
+                        reconnecting = false;
                     }
                     else
                     {
@@ -398,17 +402,14 @@ namespace beParser
                     reconnecting = false;
                     return;
                 case BattlEyeConnectionResult.ConnectionFailed:
-                    SetConnectChecked(false);
                     connected = false;
                     LogDebug("RCON Failed to connect, please check server is running and beserver.cfg password is correct");
                     return;
                 case BattlEyeConnectionResult.InvalidLogin:
-                    SetConnectChecked(false);
                     connected = false;
                     LogDebug("RCON Login is invalid");
                     return;
                 default:
-                    SetConnectChecked(false);
                     connected = false;
                     LogDebug("RCON Unknown error");
                     return;
@@ -429,8 +430,8 @@ namespace beParser
                     case BattlEyeDisconnectionType.ConnectionLost:
                         if (!reconnecting)
                         {
-                            LogDebug("RCON Connection lost, attempting to recoonect");
-                            reconnecting = true;
+                            LogDebug("RCON Connection lost, attempting to reconnect");
+                            BEReconnect();
                             return;
                         }
                         return;
@@ -444,8 +445,8 @@ namespace beParser
                         {
                             if (!reconnecting)
                             {
-                                LogDebug("RCON Connection lost, attempting to recoonect");
-                                reconnecting = true;
+                                LogDebug("RCON Server appears down, attempting to reconnect");
+                                BEReconnect();
                                 return;
                             }
                             return;
@@ -677,17 +678,21 @@ namespace beParser
 
         internal void LogDebug(String s)
         {
-            UpdateDebugText(String.Format("{0} {1}", GetDateString(), s));
+            s = String.Format("{0} {1}", GetDateString(), s);
+            UpdateDebugText(s);
+            WriteLogFile("debug", s);
         }
 
         internal void LogOutput(String s)
         {
             UpdateOutputText(s);
+            WriteLogFile("output", s);
         }
 
         internal void LogRcon(String s)
         {
             UpdateRconText(s);
+            WriteLogFile("rcon", s);
         }
 
         private void DoLinesQueued()
