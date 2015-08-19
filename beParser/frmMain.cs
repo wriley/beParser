@@ -27,15 +27,19 @@ namespace beParser
         private ConcurrentQueue<string> debugLogQueue = new ConcurrentQueue<string>();
         private ConcurrentQueue<string> outputLogQueue = new ConcurrentQueue<string>();
         private ConcurrentQueue<string> rconLogQueue = new ConcurrentQueue<string>();
-        private Int32 maxLines = 10000;
         private BattlEyeClient beClient;
         private bool connected = false;
+        private bool reconnecting = false;
+        private string logFileOutput = "beParser-output.log";
+        private string logFileDebug = "beParser-debug.log";
+        private string logFileRCON = "beParser-rcon.log";
         #endregion
 
         #region public variables
         // options
         public string basePath;
         public bool rewindOn = false;
+        public bool appendLogs = false;
         public BattlEyeLoginCredentials loginCredentials;
         public bool rconConnect;
         public bool rconServerConsole;
@@ -127,6 +131,24 @@ namespace beParser
                 MessageBox.Show("You need to set the path to your BattlEye folder");
                 frmOptions frmOptions = new frmOptions(this);
                 frmOptions.Show(this);
+            }
+
+            if (!appendLogs)
+            {
+                // We're not appending to create/overwrite program log files
+                try
+                {
+                    FileStream fs = new FileStream(logFileOutput, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite);
+                    fs.Close();
+                    fs = new FileStream(logFileDebug, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite);
+                    fs.Close();
+                    fs = new FileStream(logFileRCON, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite);
+                    fs.Close();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                }
             }
 
             Run();
@@ -269,21 +291,25 @@ namespace beParser
         private void Run()
         {
             // create and start UI threads
-            Thread tDebug = new Thread(DoDebugLog);
-            tDebug.IsBackground = true;
-            tDebug.Start();
-
-            Thread tOutput = new Thread(DoOutputLog);
-            tOutput.IsBackground = true;
-            tOutput.Start();
-
-            Thread tRcon = new Thread(DoRconLog);
-            tRcon.IsBackground = true;
-            tRcon.Start();
-
             Thread tLinesQueued = new Thread(DoLinesQueued);
             tLinesQueued.IsBackground = true;
             tLinesQueued.Start();
+
+            // create timer to keep RCON connection open if needed
+            // TODO: make RCON connection functionality into a nice, elegant class
+            var timerRCON = new System.Timers.Timer();
+            timerRCON.AutoReset = true;
+            timerRCON.SynchronizingObject = this;
+            timerRCON.Interval = 5000;
+            timerRCON.Elapsed +=
+                (sender, args) =>
+                {
+                    if (!connected && reconnecting)
+                    {
+                        beClient.Connect();
+                    }
+                };
+            timerRCON.Start();
         }
 
         private bool LoadFileChecks()
@@ -337,7 +363,7 @@ namespace beParser
             {
                 return;
             }
-            LogDebug(string.Format("RCON attempting connection to {0}:{1}", loginCredentials.Host, loginCredentials.Port));
+            LogDebug(string.Format("RCON Attempting connection to {0}:{1}", loginCredentials.Host, loginCredentials.Port));
             beClient = new BattlEyeClient(loginCredentials);
             beClient.BattlEyeMessageReceived += BattlEyeMessageReceived;
             beClient.BattlEyeConnected += BattlEyeConnected;
@@ -356,24 +382,80 @@ namespace beParser
 
         private void BattlEyeConnected(BattlEyeConnectEventArgs args)
         {
-            LogDebug("RCON " + args.Message);
-            if (beClient.Connected)
+            switch (args.ConnectionResult)
             {
-                cbConnect.Checked = true;
-                connected = true;
-            }
-            else
-            {
-                cbConnect.Checked = false;
-                connected = false;
+                case BattlEyeConnectionResult.Success:
+                    SetConnectChecked(true);
+                    connected = true;
+                    if (reconnecting)
+                    {
+                        LogDebug("RCON Reconnected");
+                    }
+                    else
+                    {
+                        LogDebug("RCON Connected");
+                    }
+                    reconnecting = false;
+                    return;
+                case BattlEyeConnectionResult.ConnectionFailed:
+                    SetConnectChecked(false);
+                    connected = false;
+                    LogDebug("RCON Failed to connect, please check server is running and beserver.cfg password is correct");
+                    return;
+                case BattlEyeConnectionResult.InvalidLogin:
+                    SetConnectChecked(false);
+                    connected = false;
+                    LogDebug("RCON Login is invalid");
+                    return;
+                default:
+                    SetConnectChecked(false);
+                    connected = false;
+                    LogDebug("RCON Unknown error");
+                    return;
             }
         }
 
         private void BattlEyeDisconnected(BattlEyeDisconnectEventArgs args)
         {
-            LogDebug("RCON " + args.Message);
-            cbConnect.Checked = false;
             connected = false;
+
+            if (args.DisconnectionType.HasValue)
+            {
+                switch (args.DisconnectionType)
+                {
+                    case BattlEyeDisconnectionType.Manual:
+                        LogDebug("RCON Disconnected");
+                        return;
+                    case BattlEyeDisconnectionType.ConnectionLost:
+                        if (!reconnecting)
+                        {
+                            LogDebug("RCON Connection lost, attempting to recoonect");
+                            reconnecting = true;
+                            return;
+                        }
+                        return;
+                    case BattlEyeDisconnectionType.SocketException:
+                        if (cbConnect.Enabled)
+                        {
+                            LogDebug("RCON Host invalid");
+                            return;
+                        }
+                        else
+                        {
+                            if (!reconnecting)
+                            {
+                                LogDebug("RCON Connection lost, attempting to recoonect");
+                                reconnecting = true;
+                                return;
+                            }
+                            return;
+                        }
+                }
+            }
+            else
+            {
+                LogDebug("RCON Unknown error");
+            }
         }
 
         private void BattlEyeMessageReceived(BattlEyeMessageEventArgs args)
@@ -388,7 +470,6 @@ namespace beParser
                 {
                     string msg = DateTime.Now.ToString("HH:mm:ss") + " BattlEye Server: " + message;
                     AddLineQueueLine("server_console", msg);
-                    LogDebug("RCON server_console: " + msg);
                 }
             }
         }
@@ -399,100 +480,85 @@ namespace beParser
         delegate void UpdateDebugTextCallback(string s);
         private void UpdateDebugText(string s)
         {
-            try
+            if (!this.rtbDebug.Disposing)
             {
-                if (this.rtbDebug.InvokeRequired)
+                try
                 {
-
-                    UpdateDebugTextCallback d = new UpdateDebugTextCallback(UpdateDebugText);
-
-                    Invoke(d, new object[] { s });
-
-                }
-                else
-                {
-                    rtbDebug.Text += s + Environment.NewLine;
-
-                    if (rtbDebug.Lines.Length > maxLines)
+                    if (this.rtbDebug.InvokeRequired)
                     {
-                        string[] newLines = new string[maxLines];
-                        Array.Copy(rtbDebug.Lines, 1, newLines, 0, maxLines);
-                        rtbDebug.Lines = newLines;
-                    }
 
-                    rtbDebug.SelectionStart = rtbDebug.Text.Length;
-                    rtbDebug.ScrollToCaret();
+                        UpdateDebugTextCallback d = new UpdateDebugTextCallback(UpdateDebugText);
+
+                        Invoke(d, new object[] { s });
+
+                    }
+                    else
+                    {
+                        rtbDebug.AppendText(s + Environment.NewLine);
+                        rtbDebug.SelectionStart = rtbDebug.Text.Length;
+                        rtbDebug.ScrollToCaret();
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                LogDebug(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                catch (Exception ex)
+                {
+                    Console.WriteLine(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                }
             }
         }
 
         delegate void UpdateOutputTextCallback(string s);
         private void UpdateOutputText(string s)
         {
-            try
+            if (!this.rtbOutput.Disposing)
             {
-                if (this.rtbOutput.InvokeRequired)
+                try
                 {
-                    UpdateOutputTextCallback d = new UpdateOutputTextCallback(UpdateOutputText);
-
-                    Invoke(d, new object[] { s });
-
-                }
-                else
-                {
-                    rtbOutput.Text += s + Environment.NewLine;
-
-                    if (rtbOutput.Lines.Length > maxLines)
+                    if (this.rtbOutput.InvokeRequired)
                     {
-                        string[] newLines = new string[maxLines];
-                        Array.Copy(rtbOutput.Lines, 1, newLines, 0, maxLines);
-                        rtbOutput.Lines = newLines;
-                    }
+                        UpdateOutputTextCallback d = new UpdateOutputTextCallback(UpdateOutputText);
 
-                    rtbOutput.SelectionStart = rtbOutput.Text.Length;
-                    rtbOutput.ScrollToCaret();
+                        Invoke(d, new object[] { s });
+
+                    }
+                    else
+                    {
+                        rtbOutput.AppendText(s + Environment.NewLine);
+                        rtbOutput.SelectionStart = rtbOutput.Text.Length;
+                        rtbOutput.ScrollToCaret();
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                LogDebug(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                catch (Exception ex)
+                {
+                    Console.WriteLine(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                }
             }
         }
 
         delegate void UpdateRconTextCallback(string s);
         private void UpdateRconText(string s)
         {
-            try
+            if (!this.rtbRcon.Disposing)
             {
-                if (this.rtbRcon.InvokeRequired)
+                try
                 {
-                    UpdateRconTextCallback d = new UpdateRconTextCallback(UpdateRconText);
-
-                    Invoke(d, new object[] { s });
-
-                }
-                else
-                {
-                    rtbRcon.Text += s + Environment.NewLine;
-
-                    if (rtbRcon.Lines.Length > maxLines)
+                    if (this.rtbRcon.InvokeRequired)
                     {
-                        string[] newLines = new string[maxLines];
-                        Array.Copy(rtbRcon.Lines, 1, newLines, 0, maxLines);
-                        rtbRcon.Lines = newLines;
-                    }
+                        UpdateRconTextCallback d = new UpdateRconTextCallback(UpdateRconText);
 
-                    rtbRcon.SelectionStart = rtbOutput.Text.Length;
-                    rtbRcon.ScrollToCaret();
+                        Invoke(d, new object[] { s });
+
+                    }
+                    else
+                    {
+                        rtbRcon.AppendText(s + Environment.NewLine);
+                        rtbRcon.SelectionStart = rtbOutput.Text.Length;
+                        rtbRcon.ScrollToCaret();
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                LogRcon(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                catch (Exception ex)
+                {
+                    Console.WriteLine(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                }
             }
         }
 
@@ -515,7 +581,28 @@ namespace beParser
             }
             catch (Exception ex)
             {
-                LogRcon(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                Console.WriteLine(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+            }
+        }
+
+        delegate void SetConnectCheckedCallback(bool v);
+        private void SetConnectChecked(bool v)
+        {
+            try
+            {
+                if (this.cbConnect.InvokeRequired)
+                {
+                    SetConnectCheckedCallback d = new SetConnectCheckedCallback(SetConnectChecked);
+                    Invoke(d, new object[] { v });
+                }
+                else
+                {
+                    cbConnect.Checked = v;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
             }
         }
         #endregion
@@ -525,12 +612,13 @@ namespace beParser
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             btnStartStop.Enabled = false;
+            cbRewindOn.Enabled = false;
+            cbConnect.Enabled = false;
+
             if (connected)
             {
-                LogDebug("Stopping RCON connection");
                 BEDisconnect();
             }
-            LogDebug("Stopping producer and consumer threads");
 
             // Check if any worker threads are running
             int threadsRunning = 0;
@@ -546,6 +634,7 @@ namespace beParser
             if (threadsRunning > 0)
             {
                 e.Cancel = true;
+
                 foreach (Producer w in producerObjects)
                 {
                     w.RequestStop();
@@ -584,69 +673,21 @@ namespace beParser
 
         #endregion
 
-        #region Logging
+        #region Thread functions
 
         internal void LogDebug(String s)
         {
-            debugLogQueue.Enqueue(AddDateString(s));
+            UpdateDebugText(String.Format("{0} {1}", GetDateString(), s));
         }
 
         internal void LogOutput(String s)
         {
-            outputLogQueue.Enqueue(s);
+            UpdateOutputText(s);
         }
 
         internal void LogRcon(String s)
         {
-            rconLogQueue.Enqueue(s);
-        }
-
-        private void DoDebugLog()
-        {
-            string s;
-            for (;;)
-            {
-                if (debugLogQueue.TryDequeue(out s))
-                {
-                    UpdateDebugText(s);
-                }
-                else
-                {
-                    Thread.Sleep(500);
-                }
-            }
-        }
-
-        private void DoOutputLog()
-        {
-            string s;
-            for (;;)
-            {
-                if (outputLogQueue.TryDequeue(out s))
-                {
-                    UpdateOutputText(s);
-                }
-                else
-                {
-                    Thread.Sleep(500);
-                }
-            }
-        }
-
-        private void DoRconLog()
-        {
-            string s;
-            for (;;)
-            {
-                if (rconLogQueue.TryDequeue(out s))
-                {
-                    UpdateRconText(s);
-                }
-                else
-                {
-                    Thread.Sleep(500);
-                }
-            }
+            UpdateRconText(s);
         }
 
         private void DoLinesQueued()
@@ -701,6 +742,35 @@ namespace beParser
                 lastLinesCount = linesCount;
                 lpsLast = lpsCurr;
                 Thread.Sleep(200);
+            }
+        }
+
+        private void WriteLogFile(string f, string s)
+        {
+            string theFile = "";
+            switch (f)
+            {
+                case "output":
+                    theFile = logFileOutput;
+                    break;
+                case "debug":
+                    theFile = logFileDebug;
+                    break;
+                case "rcon":
+                    theFile = logFileRCON;
+                    break;
+                default:
+                    break;
+            }
+            try
+            {
+                StreamWriter sw = new StreamWriter(theFile, true);
+                sw.WriteLine(s);
+                sw.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
             }
         }
 
@@ -769,7 +839,7 @@ namespace beParser
                 BEConnect();
             }
 
-            if(!cbConnect.Checked && connected)
+            if (!cbConnect.Checked && connected)
             {
                 BEDisconnect();
             }
@@ -781,14 +851,35 @@ namespace beParser
 
         #region Internal helper functions
 
-        internal String GetDateString()
+        internal String GetDateString(string date = null)
         {
-            return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-        }
-
-        internal String AddDateString(String s)
-        {
-            return GetDateString() + " " + s;
+            string format = "yyyy-MM-dd HH:mm:ss";
+            if (date == null)
+            {
+                return DateTime.Now.ToString(format);
+            }
+            else
+            {
+                try
+                {
+                    if (date.Contains(".")) // assume BE log timestamp format like 17.06.2015 18:14:30
+                    {
+                        string[] tokens = date.Split(' ');
+                        string[] dateTokens = tokens[0].Split('.');
+                        return String.Format("{0}-{1}-{2} {3}", dateTokens[2], dateTokens[1], dateTokens[0], tokens[1]);
+                    }
+                    else
+                    {
+                        return Convert.ToDateTime(date).ToString(format);
+                    }
+                }
+                catch(Exception ex)
+                {
+                    LogDebug(ex.Message);
+                    LogDebug(String.Format("Warning: Invalid date string '{0}' passed to GetDateString(), using current time", date));
+                    return DateTime.Now.ToString(format);
+                }
+            }
         }
 
         internal bool GetLineQueueLine(string fileName, out string line)
@@ -801,7 +892,7 @@ namespace beParser
             }
             catch (Exception ex)
             {
-                LogDebug(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+                Console.WriteLine(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
                 line = "";
                 return false;
             }
@@ -828,7 +919,7 @@ namespace beParser
             }
             catch (Exception ex)
             {
-                LogDebug(MethodBase.GetCurrentMethod().Name + "() " + ex.Message);
+                Console.WriteLine(MethodBase.GetCurrentMethod().Name + "() " + ex.Message);
                 return null;
             }
         }
@@ -954,6 +1045,8 @@ namespace beParser
 
             // TODO: make rcon connection and commands available like rcon.pl
 
+            date = GetDateString(date);
+
             String[] cmdArgs = new String[] { guid, ip, player, date, rule };
 
             if (guid != null || slot != 999 || player != null)
@@ -962,15 +1055,15 @@ namespace beParser
                 {
                     alreadyBannedGuids.Add(guid);
                     string cmd = String.Format("kickbyguid {0};!sleep 1;addban {0} 0 BP-{4} {2} {3};!sleep 1;addban {1} 0 BP-{4} {2} {3}", cmdArgs);
-                    LogRcon(cmd);
-
+                    // TODO:
+                    LogRcon(String.Format("{0} {1}", GetDateString(), cmd));
                     LogOutput(String.Format("{0} Trigger for GUID:{1} NAME:\"{2}\" SOURCE:{3} command={4}", date, guid, player, rule, cmd));
                 }
                 else if (action != null)
                 {
                     string cmd = String.Format(action, cmdArgs);
-                    LogRcon(cmd);
-
+                    // TODO:
+                    LogRcon(String.Format("{0} {1}", GetDateString(), cmd));
                     LogOutput(String.Format("{0} Trigger for GUID:{1} NAME:\"{2}\" SOURCE:{3} command={4}", date, guid, player, rule, cmd));
                 }
                 else
@@ -1028,6 +1121,7 @@ namespace beParser
             // General
             basePath = iniFile.GetValue("General", "basePath", @"c:\set\me\please");
             rewindOn = iniFile.GetValue("General", "rewindOn", false);
+            appendLogs = iniFile.GetValue("General", "appendLogs", false);
 
             // RCON
             try
@@ -1056,6 +1150,7 @@ namespace beParser
             // General
             iniFile.SetValue("General", "basePath", basePath);
             iniFile.SetValue("General", "rewindOn", rewindOn);
+            iniFile.SetValue("General", "appendLogs", appendLogs);
 
             // RCON
             iniFile.SetValue("RCON", "rconHostname", loginCredentials.Host.ToString());
@@ -1417,7 +1512,7 @@ namespace beParser
 
                             if (_parentForm.IsNewPlayer(player, guid))
                             {
-                                ThreadLogOutput(_match1.Groups[1].Value + " GUID seen '" + player + "'=>" + guid);
+                                ThreadLogOutput(_parentForm.GetDateString() + " " + _match1.Groups[1].Value + " GUID seen '" + player + "'=>" + guid);
                                 _parentForm.PlayerToGuidAdd(player, guid);
                             }
                         }
@@ -1450,7 +1545,7 @@ namespace beParser
 
                             if (dateExists.Success)
                             {
-                                date = _match1.Groups["date"].Value;
+                                date = _parentForm.GetDateString(_match1.Groups["date"].Value);
                             }
                             else
                             {
@@ -1582,7 +1677,7 @@ namespace beParser
                                     _parentForm.UpdateRuleCount(key);
                                     int currentCount = _parentForm.GetRuleCount(key);
 
-                                    ThreadLogOutput(currentCount + "/" + _fileChecks[i].count + ":" + _fileName + ":" + line);
+                                    ThreadLogOutput(_parentForm.GetDateString() + " " + currentCount + "/" + _fileChecks[i].count + ":" + _fileName + ":" + line);
                                     if (currentCount == _fileChecks[i].count)
                                     {
                                         _parentForm.Ban(guid, ip, player, slot, date, rule, _fileChecks[i].command);

@@ -37,6 +37,7 @@
             this.cbGeneralRewindOn = new System.Windows.Forms.CheckBox();
             this.gbGeneral = new System.Windows.Forms.GroupBox();
             this.gbRCON = new System.Windows.Forms.GroupBox();
+            this.cbRCONServerConsole = new System.Windows.Forms.CheckBox();
             this.cbRCONConnect = new System.Windows.Forms.CheckBox();
             this.tbRCONPassword = new System.Windows.Forms.TextBox();
             this.lblRCONPassword = new System.Windows.Forms.Label();
@@ -44,7 +45,7 @@
             this.lblRCONPort = new System.Windows.Forms.Label();
             this.tbRCONHostname = new System.Windows.Forms.TextBox();
             this.lblRCONHostname = new System.Windows.Forms.Label();
-            this.cbRCONServerConsole = new System.Windows.Forms.CheckBox();
+            this.cbAppendLogs = new System.Windows.Forms.CheckBox();
             this.gbGeneral.SuspendLayout();
             this.gbRCON.SuspendLayout();
             this.SuspendLayout();
@@ -107,6 +108,7 @@
             // 
             // gbGeneral
             // 
+            this.gbGeneral.Controls.Add(this.cbAppendLogs);
             this.gbGeneral.Controls.Add(this.tbGeneralPath);
             this.gbGeneral.Controls.Add(this.cbGeneralRewindOn);
             this.gbGeneral.Controls.Add(this.lblGeneralPath);
@@ -134,6 +136,16 @@
             this.gbRCON.TabIndex = 6;
             this.gbRCON.TabStop = false;
             this.gbRCON.Text = "RCON";
+            // 
+            // cbRCONServerConsole
+            // 
+            this.cbRCONServerConsole.AutoSize = true;
+            this.cbRCONServerConsole.Location = new System.Drawing.Point(87, 124);
+            this.cbRCONServerConsole.Name = "cbRCONServerConsole";
+            this.cbRCONServerConsole.Size = new System.Drawing.Size(183, 17);
+            this.cbRCONServerConsole.TabIndex = 12;
+            this.cbRCONServerConsole.Text = "Use RCON for server console log";
+            this.cbRCONServerConsole.UseVisualStyleBackColor = true;
             // 
             // cbRCONConnect
             // 
@@ -194,15 +206,15 @@
             this.lblRCONHostname.TabIndex = 6;
             this.lblRCONHostname.Text = "Hostname/IP";
             // 
-            // cbRCONServerConsole
+            // cbAppendLogs
             // 
-            this.cbRCONServerConsole.AutoSize = true;
-            this.cbRCONServerConsole.Location = new System.Drawing.Point(87, 124);
-            this.cbRCONServerConsole.Name = "cbRCONServerConsole";
-            this.cbRCONServerConsole.Size = new System.Drawing.Size(183, 17);
-            this.cbRCONServerConsole.TabIndex = 12;
-            this.cbRCONServerConsole.Text = "Use RCON for server console log";
-            this.cbRCONServerConsole.UseVisualStyleBackColor = true;
+            this.cbAppendLogs.AutoSize = true;
+            this.cbAppendLogs.Location = new System.Drawing.Point(14, 79);
+            this.cbAppendLogs.Name = "cbAppendLogs";
+            this.cbAppendLogs.Size = new System.Drawing.Size(233, 17);
+            this.cbAppendLogs.TabIndex = 6;
+            this.cbAppendLogs.Text = "Append to program logs instead of overwrite";
+            this.cbAppendLogs.UseVisualStyleBackColor = true;
             // 
             // frmOptions
             // 
@@ -243,5 +255,6 @@
         private System.Windows.Forms.TextBox tbRCONHostname;
         private System.Windows.Forms.Label lblRCONHostname;
         private System.Windows.Forms.CheckBox cbRCONServerConsole;
+        private System.Windows.Forms.CheckBox cbAppendLogs;
     }
 }
