@@ -28,6 +28,7 @@ namespace beParser
             tbGeneralPath.Text = parentForm.basePath;
             cbGeneralRewindOn.Checked = parentForm.rewindOn;
             cbAppendLogs.Checked = parentForm.appendLogs;
+            cbAutoStart.Checked = parentForm.autoStart;
 
             // RCON
             tbRCONHostname.Text = parentForm.GetLoginCredentials("Host");
@@ -52,6 +53,7 @@ namespace beParser
             parentForm.rewindOn = cbGeneralRewindOn.Checked;
             parentForm.basePath = tbGeneralPath.Text;
             parentForm.appendLogs = cbAppendLogs.Checked;
+            parentForm.autoStart = cbAutoStart.Checked;
 
             // RCON
             parentForm.SetLoginCredentials("Host", tbRCONHostname.Text);

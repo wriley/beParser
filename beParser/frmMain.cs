@@ -40,6 +40,7 @@ namespace beParser
         public string basePath;
         public bool rewindOn = false;
         public bool appendLogs = false;
+        public bool autoStart = false;
         public BattlEyeLoginCredentials loginCredentials;
         public bool rconConnect;
         public bool rconServerConsole;
@@ -151,7 +152,21 @@ namespace beParser
                 }
             }
 
-            Run();
+            // create and start UI threads
+            Thread tLinesQueued = new Thread(DoLinesQueued);
+            tLinesQueued.IsBackground = true;
+            tLinesQueued.Start();
+
+            if (autoStart)
+            {
+                if (Start())
+                {
+                    started = true;
+                    btnStartStop.Text = "Stop";
+                    cbRewindOn.Enabled = false;
+                    cbConnect.Enabled = false;
+                }
+            }
         }
 
         #region Main program flow functions
@@ -286,14 +301,6 @@ namespace beParser
             }
             lineQueues.Clear();
             return true;
-        }
-
-        private void Run()
-        {
-            // create and start UI threads
-            Thread tLinesQueued = new Thread(DoLinesQueued);
-            tLinesQueued.IsBackground = true;
-            tLinesQueued.Start();
         }
 
         private bool LoadFileChecks()
@@ -1127,6 +1134,7 @@ namespace beParser
             basePath = iniFile.GetValue("General", "basePath", @"c:\set\me\please");
             rewindOn = iniFile.GetValue("General", "rewindOn", false);
             appendLogs = iniFile.GetValue("General", "appendLogs", false);
+            autoStart = iniFile.GetValue("General", "autoStart", false);
 
             // RCON
             try
@@ -1156,6 +1164,7 @@ namespace beParser
             iniFile.SetValue("General", "basePath", basePath);
             iniFile.SetValue("General", "rewindOn", rewindOn);
             iniFile.SetValue("General", "appendLogs", appendLogs);
+            iniFile.SetValue("General", "autoStart", autoStart);
 
             // RCON
             iniFile.SetValue("RCON", "rconHostname", loginCredentials.Host.ToString());

@@ -36,6 +36,7 @@
             this.btnGeneralBrowse = new System.Windows.Forms.Button();
             this.cbGeneralRewindOn = new System.Windows.Forms.CheckBox();
             this.gbGeneral = new System.Windows.Forms.GroupBox();
+            this.cbAppendLogs = new System.Windows.Forms.CheckBox();
             this.gbRCON = new System.Windows.Forms.GroupBox();
             this.cbRCONServerConsole = new System.Windows.Forms.CheckBox();
             this.cbRCONConnect = new System.Windows.Forms.CheckBox();
@@ -45,7 +46,7 @@
             this.lblRCONPort = new System.Windows.Forms.Label();
             this.tbRCONHostname = new System.Windows.Forms.TextBox();
             this.lblRCONHostname = new System.Windows.Forms.Label();
-            this.cbAppendLogs = new System.Windows.Forms.CheckBox();
+            this.cbAutoStart = new System.Windows.Forms.CheckBox();
             this.gbGeneral.SuspendLayout();
             this.gbRCON.SuspendLayout();
             this.SuspendLayout();
@@ -108,6 +109,7 @@
             // 
             // gbGeneral
             // 
+            this.gbGeneral.Controls.Add(this.cbAutoStart);
             this.gbGeneral.Controls.Add(this.cbAppendLogs);
             this.gbGeneral.Controls.Add(this.tbGeneralPath);
             this.gbGeneral.Controls.Add(this.cbGeneralRewindOn);
@@ -119,6 +121,16 @@
             this.gbGeneral.TabIndex = 6;
             this.gbGeneral.TabStop = false;
             this.gbGeneral.Text = "General";
+            // 
+            // cbAppendLogs
+            // 
+            this.cbAppendLogs.AutoSize = true;
+            this.cbAppendLogs.Location = new System.Drawing.Point(14, 79);
+            this.cbAppendLogs.Name = "cbAppendLogs";
+            this.cbAppendLogs.Size = new System.Drawing.Size(233, 17);
+            this.cbAppendLogs.TabIndex = 6;
+            this.cbAppendLogs.Text = "Append to program logs instead of overwrite";
+            this.cbAppendLogs.UseVisualStyleBackColor = true;
             // 
             // gbRCON
             // 
@@ -206,15 +218,15 @@
             this.lblRCONHostname.TabIndex = 6;
             this.lblRCONHostname.Text = "Hostname/IP";
             // 
-            // cbAppendLogs
+            // cbAutoStart
             // 
-            this.cbAppendLogs.AutoSize = true;
-            this.cbAppendLogs.Location = new System.Drawing.Point(14, 79);
-            this.cbAppendLogs.Name = "cbAppendLogs";
-            this.cbAppendLogs.Size = new System.Drawing.Size(233, 17);
-            this.cbAppendLogs.TabIndex = 6;
-            this.cbAppendLogs.Text = "Append to program logs instead of overwrite";
-            this.cbAppendLogs.UseVisualStyleBackColor = true;
+            this.cbAutoStart.AutoSize = true;
+            this.cbAutoStart.Location = new System.Drawing.Point(14, 102);
+            this.cbAutoStart.Name = "cbAutoStart";
+            this.cbAutoStart.Size = new System.Drawing.Size(152, 17);
+            this.cbAutoStart.TabIndex = 7;
+            this.cbAutoStart.Text = "Start processing on launch";
+            this.cbAutoStart.UseVisualStyleBackColor = true;
             // 
             // frmOptions
             // 
@@ -256,5 +268,6 @@
         private System.Windows.Forms.Label lblRCONHostname;
         private System.Windows.Forms.CheckBox cbRCONServerConsole;
         private System.Windows.Forms.CheckBox cbAppendLogs;
+        private System.Windows.Forms.CheckBox cbAutoStart;
     }
 }
