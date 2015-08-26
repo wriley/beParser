@@ -1707,7 +1707,7 @@ namespace beParser
                                     _parentForm.UpdateRuleCount(key);
                                     int currentCount = _parentForm.GetRuleCount(key);
 
-                                    ThreadLogOutput(_parentForm.GetDateString() + " " + currentCount + "/" + _fileChecks[i].count + ":" + _fileName + ":" + line + " - guid " + guid + " player " + player);
+                                    ThreadLogOutput(_parentForm.GetDateString() + " " + currentCount + "/" + _fileChecks[i].count + ":" + _fileName + ":" + line);
                                     if (currentCount == _fileChecks[i].count)
                                     {
                                         _parentForm.Ban(guid, ip, player, slot, date, rule, _fileChecks[i].command);
