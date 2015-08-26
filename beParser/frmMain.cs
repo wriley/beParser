@@ -946,7 +946,7 @@ namespace beParser
 
         internal string PlayerToGuidGet(string player)
         {
-            if (playerToGuid.ContainsKey(player))
+            if (player != null && playerToGuid.ContainsKey(player))
             {
                 return playerToGuid[player];
             }
@@ -966,7 +966,7 @@ namespace beParser
 
         internal string UidToPlayerGet(string uid)
         {
-            if (uidToPlayer.ContainsKey(uid))
+            if (uid != null && uidToPlayer.ContainsKey(uid))
             {
                 return uidToPlayer[uid];
             }
@@ -1006,7 +1006,7 @@ namespace beParser
 
         internal int PlayerToSlotGet(string player)
         {
-            if (playerToSlot.ContainsKey(player))
+            if (player != null && playerToSlot.ContainsKey(player))
             {
                 return playerToSlot[player];
             }
@@ -1396,7 +1396,7 @@ namespace beParser
         private string rule;
         private Int32 unixtime = 0;
         private string evt;
-        private Regex server_console1 = new Regex(@"\d+:\d+:\d+ (?:BattlEye Server: Player #(?<slot>\d+) (?<player>.*?) (?:- GUID: (?<guid>[a-f0-9]{32}) \(unverified\)|\((?<ip>[0-9.]+?):\d+\) connected)|(?:BattlEye Server: )?Player #?(?<slot>\d+)?\s?(?<player>.*?) (?:kicked off by BattlEye: (?<evt>Admin Ban)|connected \(id=(?<uid>[0-9AX]+)\)\.|(?<evt>disconnected\.?)|kicked off by BattlEye: (?<evt>Global Ban) #[a-f0-9]+)|Player #(?<slot>\d+) (?<player>.*?) \([a-f0-9]{32}\) has been kicked by BattlEye: (?<evt>Invalid GUID)|BattlEye Server: \((?<evt>.*?)\) (?<player>.*?) *: (?<msg>.*)) *$", RegexOptions.Compiled | RegexOptions.Singleline);
+        private Regex server_console1 = new Regex(@"(?<time>\d+:\d+:\d+) (?:BattlEye Server: Player #(?<slot>\d+) (?<player>.*?) (?:- GUID: (?<guid>[a-f0-9]{32}) \(unverified\)|\((?<ip>[0-9.]+?):\d+\) connected)|(?:BattlEye Server: )?Player #?(?<slot>\d+)?\s?(?<player>.*?) (?:kicked off by BattlEye: (?<evt>Admin Ban)|connected \(id=(?<uid>[0-9AX]+)\)\.|(?<evt>disconnected\.?)|kicked off by BattlEye: (?<evt>Global Ban) #[a-f0-9]+)|Player #(?<slot>\d+) (?<player>.*?) \([a-f0-9]{32}\) has been kicked by BattlEye: (?<evt>Invalid GUID)|BattlEye Server: \((?<evt>.*?)\) (?<player>.*?) *: (?<msg>.*)|Player (?<player>.*) is losing connection) *$", RegexOptions.Compiled | RegexOptions.Singleline);
         private Regex publicvariable1 = new Regex(@"([0-9]+\.[0-9]+\.[0-9]+ [0-9]+:[0-9]+:[0-9]+): (.*) \(([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}):[0-9]+\) ([0-9a-z]{32}) - ", RegexOptions.Compiled | RegexOptions.Singleline);
         private Regex otherfiles1 = new Regex(@"(?<date>(?<D>\d+)\.(?<M>\d+)\.(?<Y>\d+) (?<h>\d+):(?<m>\d+):(?<s>\d+)): (?<player>.*?) ?\((?<ip>[0-9.]{7,15}):[0-9]{1,5}\) (?<guid>(?:-|[a-f0-9]{32})) - ", RegexOptions.Compiled | RegexOptions.Singleline);
 
@@ -1428,10 +1428,26 @@ namespace beParser
 
                         if (_match1.Success)
                         {
+                            Group timeExists = _match1.Groups["time"];
+                            Group playerExists = _match1.Groups["player"];
                             Group guidExists = _match1.Groups["guid"];
                             Group uidExists = _match1.Groups["uid"];
                             Group ipExists = _match1.Groups["ip"];
                             Group evtExists = _match1.Groups["evt"];
+
+                            if(timeExists.Success)
+                            {
+                                DateTime dt = DateTime.Now;
+                                TimeSpan ts = TimeSpan.Parse(_match1.Groups["time"].Value);
+                                dt = dt.Date + ts;
+                                unixtime = (Int32)(dt.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
+                            }
+
+                            if(playerExists.Success)
+                            {
+                                player = _match1.Groups["player"].Value;
+                                guid = _parentForm.PlayerToGuidGet(player);
+                            }
 
                             if (guidExists.Success)
                             {
@@ -1687,11 +1703,11 @@ namespace beParser
                                 else
                                 {
                                     string key = rule + guid + Convert.ToString(Convert.ToDecimal((unixtime / _fileChecks[i].seconds)));
-
+                                    
                                     _parentForm.UpdateRuleCount(key);
                                     int currentCount = _parentForm.GetRuleCount(key);
 
-                                    ThreadLogOutput(_parentForm.GetDateString() + " " + currentCount + "/" + _fileChecks[i].count + ":" + _fileName + ":" + line);
+                                    ThreadLogOutput(_parentForm.GetDateString() + " " + currentCount + "/" + _fileChecks[i].count + ":" + _fileName + ":" + line + " - guid " + guid + " player " + player);
                                     if (currentCount == _fileChecks[i].count)
                                     {
                                         _parentForm.Ban(guid, ip, player, slot, date, rule, _fileChecks[i].command);
