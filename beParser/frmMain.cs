@@ -229,7 +229,8 @@ namespace beParser
 
                 LogDebug("Starting producer and consumer threads");
                 // create and start consumer threads
-                foreach (var lqKey in lineQueues.Keys)
+                var lqKeys = lineQueues.Keys;
+                foreach (var lqKey in lqKeys)
                 {
                     ConcurrentQueue<string> lq = lineQueues[lqKey];
                     Consumer c = new Consumer(this, lqKey);
@@ -1059,6 +1060,16 @@ namespace beParser
 
             date = GetDateString(date);
 
+            if(guid == null)
+            {
+                if(player != null)
+                {
+                    guid = PlayerToGuidGet(player);
+                }
+            }
+
+            LogDebug(String.Format("Ban({0}, {1}, {2}, {3}, {4}, {5}, {6})", guid, ip, player, slot, date, rule, action));
+
             String[] cmdArgs = new String[] { guid, ip, player, date, rule };
 
             if (guid != null || slot != 999 || player != null)
@@ -1485,10 +1496,11 @@ namespace beParser
                                         break;
                                     case "Global Ban":
                                         slot = _parentForm.PlayerToSlotGet(player);
+                                        player = _match1.Groups["player"].Value;
                                         if (slot == -1) { slot = 999; }
                                         ip = _parentForm.SlotToIPGet(slot);
                                         if (ip == null) { ip = "127.0.0.1"; }
-                                        _parentForm.Ban(null, ip, null, -1, null, null, null);
+                                        _parentForm.Ban(null, ip, player, -1, null, "IP from a former Global Ban", "kickbyname {2};!sleep 1;addban {1} 10080 {4}");
                                         break;
                                     case "Invalid GUID":
                                         if (_match1.Groups["slot"].Value != null)
@@ -1499,9 +1511,10 @@ namespace beParser
                                         {
                                             slot = 999;
                                         }
+                                        player = _match1.Groups["player"].Value;
                                         ip = _parentForm.SlotToIPGet(slot);
                                         if (ip == null) { ip = "127.0.0.1"; }
-                                        _parentForm.Ban(null, ip, null, -1, null, null, null);
+                                        _parentForm.Ban(null, ip, player, -1, null, "IP from a former Invalid GUID", "kickbyname {2};!sleep 1;addban {1} 0 {4}");
                                         break;
                                     case "Admin Ban":
                                         player = _match1.Groups["player"].Value;
