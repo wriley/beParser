@@ -212,6 +212,7 @@ namespace beParser
                     {
                         fullPath += "//" + file + ".log";
                     }
+
                     if (file == "server_console" && rconServerConsole)
                     {
                         LogDebug("server_console set for RCON");
@@ -473,7 +474,7 @@ namespace beParser
             {
                 string message = args.Message;
                 if (
-                    message.StartsWith("Player #") ||
+                    message.StartsWith("Player ") ||
                     message.StartsWith("Verified GUID (")
                     )
                 {
@@ -1068,7 +1069,7 @@ namespace beParser
                 }
             }
 
-            LogDebug(String.Format("Ban({0}, {1}, {2}, {3}, {4}, {5}, {6})", guid, ip, player, slot, date, rule, action));
+            //LogDebug(String.Format("Ban({0}, {1}, {2}, {3}, {4}, {5}, {6})", guid, ip, player, slot, date, rule, action));
 
             String[] cmdArgs = new String[] { guid, ip, player, date, rule };
 
