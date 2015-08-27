@@ -217,15 +217,13 @@ namespace beParser
                     {
                         LogDebug("server_console set for RCON");
                     }
-                    else
-                    {
-                        Producer w = new Producer(this, fullPath, file);
-                        producerObjects.Add(w);
-                        Thread t = new Thread(w.DoWork);
-                        workerThreads.Add(t);
-                        t.IsBackground = true;
-                        t.Start();
-                    }
+
+                    Producer w = new Producer(this, fullPath, file);
+                    producerObjects.Add(w);
+                    Thread t = new Thread(w.DoWork);
+                    workerThreads.Add(t);
+                    t.IsBackground = true;
+                    t.Start();
                 }
 
                 LogDebug("Starting producer and consumer threads");
@@ -384,7 +382,7 @@ namespace beParser
 
         private void HandleBEReconnect()
         {
-            while(reconnecting && !beClient.Connected)
+            while (reconnecting && !beClient.Connected)
             {
                 Thread.Sleep(5000);
                 BEDisconnect();
@@ -474,7 +472,7 @@ namespace beParser
             {
                 string message = args.Message;
                 if (
-                    message.StartsWith("Player ") ||
+                    message.StartsWith("Player #") ||
                     message.StartsWith("Verified GUID (")
                     )
                 {
@@ -714,7 +712,7 @@ namespace beParser
             int lpsMax = 0;
             int lpsAvg = 0;
 
-            for (;;)
+            for (; ; )
             {
                 linesCount = 0;
                 foreach (var lqKey in lineQueues.Keys)
@@ -887,7 +885,7 @@ namespace beParser
                         return Convert.ToDateTime(date).ToString(format);
                     }
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     LogDebug(ex.Message);
                     LogDebug(String.Format("Warning: Invalid date string '{0}' passed to GetDateString(), using current time", date));
@@ -1061,9 +1059,9 @@ namespace beParser
 
             date = GetDateString(date);
 
-            if(guid == null)
+            if (guid == null)
             {
-                if(player != null)
+                if (player != null)
                 {
                     guid = PlayerToGuidGet(player);
                 }
@@ -1447,7 +1445,7 @@ namespace beParser
                             Group ipExists = _match1.Groups["ip"];
                             Group evtExists = _match1.Groups["evt"];
 
-                            if(timeExists.Success)
+                            if (timeExists.Success)
                             {
                                 DateTime dt = DateTime.Now;
                                 TimeSpan ts = TimeSpan.Parse(_match1.Groups["time"].Value);
@@ -1455,7 +1453,7 @@ namespace beParser
                                 unixtime = (Int32)(dt.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
                             }
 
-                            if(playerExists.Success)
+                            if (playerExists.Success)
                             {
                                 player = _match1.Groups["player"].Value;
                                 guid = _parentForm.PlayerToGuidGet(player);
@@ -1717,7 +1715,7 @@ namespace beParser
                                 else
                                 {
                                     string key = rule + guid + Convert.ToString(Convert.ToDecimal((unixtime / _fileChecks[i].seconds)));
-                                    
+
                                     _parentForm.UpdateRuleCount(key);
                                     int currentCount = _parentForm.GetRuleCount(key);
 
