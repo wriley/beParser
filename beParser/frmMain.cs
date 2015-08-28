@@ -12,6 +12,7 @@ using System.Text;
 using STA.Settings;
 using BattleNET;
 using System.Net;
+using System.Diagnostics;
 
 namespace beParser
 {
@@ -33,6 +34,7 @@ namespace beParser
         private string logFileOutput = "beParser-output.log";
         private string logFileDebug = "beParser-debug.log";
         private string logFileRCON = "beParser-rcon.log";
+        private string pidFile = "beParser.pid";
         #endregion
 
         #region public variables
@@ -115,6 +117,8 @@ namespace beParser
 
         private void fmrMain_Load(object sender, EventArgs e)
         {
+            WritePIDFile(pidFile);
+
             try
             {
                 iniFile = new INIFile(iniFilePath);
@@ -482,6 +486,32 @@ namespace beParser
             }
         }
 
+        private void WritePIDFile(string f)
+        {
+            int pid = Process.GetCurrentProcess().Id;
+
+            try
+            {
+                System.IO.File.WriteAllText(f, pid.ToString());
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+            }
+        }
+
+        private void DeletePIDFile(string f)
+        {
+            try
+            {
+                System.IO.File.Delete(f);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(MethodBase.GetCurrentMethod().Name + " " + ex.Message);
+            }
+        }
+
         #endregion
 
         #region Delegates
@@ -668,6 +698,7 @@ namespace beParser
                         }
                         if (threadsRunning == 0)
                         {
+                            DeletePIDFile(pidFile);
                             Close();
                         }
                         else
@@ -676,6 +707,10 @@ namespace beParser
                         }
                     };
                 timer.Start();
+            }
+            else
+            {
+                DeletePIDFile(pidFile);
             }
         }
 
@@ -712,7 +747,7 @@ namespace beParser
             int lpsMax = 0;
             int lpsAvg = 0;
 
-            for (; ; )
+            for (;;)
             {
                 linesCount = 0;
                 foreach (var lqKey in lineQueues.Keys)
@@ -1085,7 +1120,10 @@ namespace beParser
                 {
                     string cmd = String.Format(action, cmdArgs);
                     // TODO:
-                    LogRcon(String.Format("{0} {1}", GetDateString(), cmd));
+                    if (action != "logonly")
+                    {
+                        LogRcon(String.Format("{0} {1}", GetDateString(), cmd));
+                    }
                     LogOutput(String.Format("{0} Trigger for GUID:{1} NAME:\"{2}\" SOURCE:{3} command={4}", date, guid, player, rule, cmd));
                 }
                 else
@@ -1407,6 +1445,7 @@ namespace beParser
         private Int32 unixtime = 0;
         private string evt;
         private Regex server_console1 = new Regex(@"(?<time>\d+:\d+:\d+) (?:BattlEye Server: Player #(?<slot>\d+) (?<player>.*?) (?:- GUID: (?<guid>[a-f0-9]{32}) \(unverified\)|\((?<ip>[0-9.]+?):\d+\) connected)|(?:BattlEye Server: )?Player #?(?<slot>\d+)?\s?(?<player>.*?) (?:kicked off by BattlEye: (?<evt>Admin Ban)|connected \(id=(?<uid>[0-9AX]+)\)\.|(?<evt>disconnected\.?)|kicked off by BattlEye: (?<evt>Global Ban) #[a-f0-9]+)|Player #(?<slot>\d+) (?<player>.*?) \([a-f0-9]{32}\) has been kicked by BattlEye: (?<evt>Invalid GUID)|BattlEye Server: \((?<evt>.*?)\) (?<player>.*?) *: (?<msg>.*)|Player (?<player>.*) is losing connection) *$", RegexOptions.Compiled | RegexOptions.Singleline);
+        private Regex arma2oaserver1 = new Regex(@"TELEPORT REVERT for player UID#(?<uid>[\d]+) from .* to .*, (?<distance>[\d]+) meters");
         private Regex publicvariable1 = new Regex(@"([0-9]+\.[0-9]+\.[0-9]+ [0-9]+:[0-9]+:[0-9]+): (.*) \(([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}):[0-9]+\) ([0-9a-z]{32}) - ", RegexOptions.Compiled | RegexOptions.Singleline);
         private Regex otherfiles1 = new Regex(@"(?<date>(?<D>\d+)\.(?<M>\d+)\.(?<Y>\d+) (?<h>\d+):(?<m>\d+):(?<s>\d+)): (?<player>.*?) ?\((?<ip>[0-9.]{7,15}):[0-9]{1,5}\) (?<guid>(?:-|[a-f0-9]{32})) - ", RegexOptions.Compiled | RegexOptions.Singleline);
 
@@ -1496,10 +1535,11 @@ namespace beParser
                                     case "Global Ban":
                                         slot = _parentForm.PlayerToSlotGet(player);
                                         player = _match1.Groups["player"].Value;
-                                        if (slot == -1) { slot = 999; }
                                         ip = _parentForm.SlotToIPGet(slot);
-                                        if (ip == null) { ip = "127.0.0.1"; }
-                                        _parentForm.Ban(null, ip, player, -1, null, "IP from a former Global Ban", "kickbyname {2};!sleep 1;addban {1} 10080 {4}");
+                                        if (ip != null)
+                                        {
+                                            _parentForm.Ban(null, ip, player, -1, null, "IP from a former Global Ban", "addban {1} 10080 {4}");
+                                        }
                                         break;
                                     case "Invalid GUID":
                                         if (_match1.Groups["slot"].Value != null)
@@ -1512,8 +1552,10 @@ namespace beParser
                                         }
                                         player = _match1.Groups["player"].Value;
                                         ip = _parentForm.SlotToIPGet(slot);
-                                        if (ip == null) { ip = "127.0.0.1"; }
-                                        _parentForm.Ban(null, ip, player, -1, null, "IP from a former Invalid GUID", "kickbyname {2};!sleep 1;addban {1} 0 {4}");
+                                        if (ip != null)
+                                        {
+                                            _parentForm.Ban(null, ip, player, -1, null, "IP from a former Invalid GUID", "kickbyname {2};!sleep 1;addban {1} 0 {4}");
+                                        }
                                         break;
                                     case "Admin Ban":
                                         player = _match1.Groups["player"].Value;
@@ -1563,6 +1605,46 @@ namespace beParser
                             player = null;
                             ip = null;
                             guid = null;
+                        }
+                    }
+                    else if (_fileName == "arma2oaserver" && !line.StartsWith("Updating base class"))
+                    {
+                        _match1 = arma2oaserver1.Match(line);
+                        if (_match1.Success)
+                        {
+                            uid = _match1.Groups["uid"].Value;
+                            int distance = 0;
+
+                            try
+                            {
+                                distance = Convert.ToInt32(_match1.Groups["distance"].Value);
+                            }
+                            catch
+                            {
+                                distance = -1;
+                            }
+
+                            if (distance > 0 && uid != null)
+                            {
+                                /*
+                                from pnson
+                                around +100-10.000m (cheater)
+                                below 100m (player lagging, legit)
+                                above 30k m (player changing skin)
+                                */
+
+                                player = _parentForm.UidToPlayerGet(uid);
+                                guid = _parentForm.PlayerToGuidGet(player);
+                                ThreadLogDebug(String.Format("TELEPORT REVERT: {0} ({1}) moved {2} meters", player, guid, distance));
+
+                                /*
+                                if (distance > 100 && distance < 10000)
+                                {
+
+                                    _parentForm.Ban(guid, null, player, -1, null, "Teleporting", "kickbyguid {0};!sleep 1;addban {0} 0 {4}");
+                                }
+                                */
+                            }
                         }
                     }
                     else // other logs
