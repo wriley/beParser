@@ -1,5 +1,5 @@
 # beParser
-A BattlEye log parser based heavily on the excellent DayZ4linux project beparser.pl and rcon.pl by facoptere
+A BattlEye log parser based heavily on the excellent DayZ4linux project beparser.pl and rcon.pl by facoptere. For RCON it uses BattleNET.dll from https://github.com/mvries/BattleNET
 
 Note: This project is incomplete
 
